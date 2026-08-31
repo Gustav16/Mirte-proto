@@ -14,3 +14,12 @@ Content:
 
 ## Reporting Bugs
 If you encounter a bug or issue in the code, please create an issue on the github page.
+
+
+## Mirte details
+
+Mirte-F549BE IP: 192.168.137.161
+Mirte-F549BE password: 1775
+
+
+

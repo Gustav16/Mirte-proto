@@ -36,4 +36,3 @@ while (True):
             #turn 90 degrees left
             mirte.drive(LT_lin_speed, LT_scaler*LT_ang_speed, LT_time)
             time.sleep(0.4)
-mirte.close()

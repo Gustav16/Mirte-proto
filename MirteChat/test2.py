@@ -158,11 +158,34 @@ def drive_square(robot, side_m=0.5):
         time.sleep(0.2)
 
 
+# --- Interactive test commands ---
+# Type a letter + Enter (not a raw keypress -- that would need
+# platform-specific libraries that behave differently on Windows vs.
+# the robot's Linux/SSH terminal, so plain input() is the portable
+# choice here).
+TURN_STEP_RAD = math.pi / 2  # 90 degrees
+DRIVE_STEP_M = 1.0
+SQUARE_SIDE_M = 1.0
+
+COMMANDS = {
+    't': lambda: turn_angle(mirte, TURN_STEP_RAD),
+    'd': lambda: drive_distance(mirte, DRIVE_STEP_M),
+    's': lambda: drive_square(mirte, side_m=SQUARE_SIDE_M),
+}
 
 
 try:
 
-    drive_square(mirte, side_m=0.5)
+    print("Commands: t = turn 90 deg, d = drive 0.5 m, s = drive full square, q = quit")
+    while True:
+        cmd = input("Command (t/d/s/q): ").strip().lower()
+        if cmd == 'q':
+            break
+        action = COMMANDS.get(cmd)
+        if action is None:
+            print(f"Unknown command '{cmd}' -- use t, d, s, or q.")
+            continue
+        action()
 
     # ... jeres kode med mirte ...
 

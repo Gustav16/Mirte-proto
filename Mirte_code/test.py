@@ -4,8 +4,6 @@ import os
 import math
 import time
 sys.path.append(os.path.join(os.path.dirname(__file__), '../Mirte/ku_mirte_python'))
-
-import time
 from ku_mirte import KU_Mirte
 
 #init mirte mirte

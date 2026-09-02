@@ -2,6 +2,7 @@
 import sys
 import os
 import math
+import time
 sys.path.append(os.path.join(os.path.dirname(__file__), '../Mirte/ku_mirte_python'))
 
 import time
@@ -15,7 +16,11 @@ try:
     #ONE METER (2 cm more and little left turn)
     # mirte.drive(0.5, -0.003, 1.85) 
 
-    mirte.drive(0, 0.5, math.pi)
+    scales = [1.1,1.12,1.15,1.20]
+    i = 0 
+    while(i < 5)
+        mirte.drive(0, 0.5, scales[i]*math.pi)
+        time.sleep(5)
 
 
     # ... jeres kode med mirte ...

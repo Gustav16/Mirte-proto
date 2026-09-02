@@ -35,4 +35,4 @@ while (True):
 
 # ... END ...
 
-del mirte
+mirte.close()

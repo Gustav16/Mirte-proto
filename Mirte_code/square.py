@@ -11,8 +11,6 @@ from ku_mirte import KU_Mirte
 #init mirte mirte
 mirte = KU_Mirte()
 
-val = input('left turn scaler:')
-
 OM_lin_speed = 0.35
 OM_ang_speed = -0.0035
 OM_time = 2.55

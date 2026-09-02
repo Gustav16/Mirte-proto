@@ -30,6 +30,8 @@ while (True):
         for _ in range(4):
             #drive one meter
             mirte.drive(OM_lin_speed, OM_ang_speed, OM_time)
+
+            time.sleep(0.4)
             
             #turn 90 degrees left
             mirte.drive(LT_lin_speed, LT_scaler*LT_ang_speed, LT_time)

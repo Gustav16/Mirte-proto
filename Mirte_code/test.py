@@ -21,6 +21,7 @@ try:
     while(i < 4):
         mirte.drive(0, 0.5, scales[i]*math.pi)
         time.sleep(5)
+        i += 1
 
 
     # ... jeres kode med mirte ...

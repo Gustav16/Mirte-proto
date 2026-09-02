@@ -11,7 +11,7 @@ mirte = KU_Mirte()
 
 #set driving modfier and start driving
 
-mirte.drive(1:, 0, 1)
+mirte.drive(1, 0, 1)
 
 
 # ... jeres kode med mirte ...

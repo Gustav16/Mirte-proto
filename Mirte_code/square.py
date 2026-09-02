@@ -19,7 +19,7 @@ OM_time = 1.85
 
 LT_lin_speed = 0.0
 LT_ang_speed = 1
-LT_scaler = float(val)
+LT_scaler = 0.95
 LT_time = math.pi/2
 
 #non-blocking loop for driving 1 sec
@@ -28,6 +28,7 @@ while (True):
     if msg == 'q':
         break
     else:
+        LT_scaler = float(input('left turn scaler:'))
         for _ in range(4):
             #drive one meter
             mirte.drive(OM_lin_speed, OM_ang_speed, OM_time)

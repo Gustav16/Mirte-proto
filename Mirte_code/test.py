@@ -10,10 +10,13 @@ from ku_mirte import KU_Mirte
 mirte = KU_Mirte()
 
 #set driving modfier and start driving
+try:
+    mirte.drive(1, 0, 1)
 
-mirte.drive(1, 0, 1)
+    # ... jeres kode med mirte ...
 
+except KeyboardInterrupt:
+    print("Program interrupted!")
 
-# ... jeres kode med mirte ...
-
-del mirte
+finally:
+    mirte.close()

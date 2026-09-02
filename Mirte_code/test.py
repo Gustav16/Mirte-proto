@@ -10,16 +10,8 @@ from ku_mirte import KU_Mirte
 mirte = KU_Mirte()
 
 #set driving modfier and start driving
-mirte.set_driving_modifier(speed_modifier=0.5, turn_modifier=0)
-mirte.drive
-start = time.perf_counter()
 
-#non-blocking loop for driving 1 sec
-while (mirte.is_driving):
-    if (time.perf_counter() - start > 1):
-        mirte.stop()
-
-
+mirte.drive(1:, 0, 1)
 
 
 # ... jeres kode med mirte ...

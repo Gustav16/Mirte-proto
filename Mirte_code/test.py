@@ -18,7 +18,7 @@ try:
 
     scales = [1.1,1.12,1.15,1.20]
     i = 0 
-    while(i < 4)
+    while(i < 4):
         mirte.drive(0, 0.5, scales[i]*math.pi)
         time.sleep(5)
 

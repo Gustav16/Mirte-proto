@@ -16,7 +16,7 @@ try:
     #ONE METER (2 cm more and little left turn)
     # mirte.drive(0.5, -0.003, 1.85) 
 
-    scales = [1,1.1,1.12,1.13, 1.15]
+    scales = [0.8,0.85,0.9,0.95,1]
     i = 0 
     while(i < 5):
         mirte.drive(0, 1, scales[i]*math.pi/2)

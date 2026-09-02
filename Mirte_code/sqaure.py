@@ -11,13 +11,9 @@ from ku_mirte import KU_Mirte
 #init mirte mirte
 mirte = KU_Mirte()
 
-def wait():
-    "Waiting function for inbetween commands"
-    sleep(0.4)
-
 OM_lin_speed = 0.5
-OM_ang_speed = 0
-OM_time = 2
+OM_ang_speed = -0.003
+OM_time = 1.85
 
 LT_lin_speed = 0.0
 LT_ang_speed = 0.5
@@ -31,14 +27,14 @@ while (True):
     else:
         for _ in range(4):
             #drive one meter
-            mirte.drive(OM_lin_speed:, OM_ang_speed, OM_time)
+            mirte.drive(OM_lin_speed, OM_ang_speed, OM_time)
             
             #wait before excutiong next command
             wait()
             #turn 90 degrees left
-            mirte.drive(LT_lin_speed:, LT_ang_speed, LT_time)
+            mirte.drive(LT_lin_speed, LT_ang_speed, LT_time)
             wait()
 
 # ... END ...
 
-del mirte
+mirte.close()

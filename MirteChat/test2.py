@@ -46,14 +46,57 @@ def _angle_wrap(angle):
     return (angle + math.pi) % (2 * math.pi) - math.pi
 
 
-def drive_distance(robot, distance_m, speed=0.1, poll_hz=20):
+def _wait_for_position(robot, timeout_s=5.0, poll_hz=20):
+    """Block until the first /odom position update arrives.
+    robot.position is None until then, so callers must not read it
+    directly before this."""
+    deadline = time.time() + timeout_s
+    pos = robot.position
+    while pos is None:
+        if time.time() > deadline:
+            raise RuntimeError(
+                "No odometry position received from /odom within "
+                f"{timeout_s}s -- is the robot publishing odometry?"
+            )
+        time.sleep(1.0 / poll_hz)
+        pos = robot.position
+    return pos
+
+
+def _wait_for_rotation(robot, timeout_s=5.0, poll_hz=20):
+    """Block until the first /odom rotation update arrives.
+    robot.rotation is None until then, so callers must not read it
+    directly before this."""
+    deadline = time.time() + timeout_s
+    rot = robot.rotation
+    while rot is None:
+        if time.time() > deadline:
+            raise RuntimeError(
+                "No odometry rotation received from /odom within "
+                f"{timeout_s}s -- is the robot publishing odometry?"
+            )
+        time.sleep(1.0 / poll_hz)
+        rot = robot.rotation
+    return rot
+
+
+def drive_distance(robot, distance_m, speed=0.1, poll_hz=20, timeout_s=30.0):
     """Drive straight for `distance_m` meters, stopping based on the
     robot's actual measured position instead of a timer."""
-    start_pos = robot.position
+    start_pos = _wait_for_position(robot)
     slowdown_started = False
+    deadline = time.time() + timeout_s
 
     robot.drive(speed, 0.0, None, blocking=False)
     while True:
+        if time.time() > deadline:
+            robot.stop()
+            raise RuntimeError(
+                f"drive_distance: did not reach {distance_m}m within "
+                f"{timeout_s}s -- odometry may have stalled or the "
+                "robot may be stuck."
+            )
+
         pos = robot.position
         traveled = math.hypot(pos.x - start_pos.x, pos.y - start_pos.y)
         remaining = distance_m - traveled
@@ -72,16 +115,25 @@ def drive_distance(robot, distance_m, speed=0.1, poll_hz=20):
     robot.stop()
 
 
-def turn_angle(robot, angle_rad, speed=0.5, poll_hz=20):
+def turn_angle(robot, angle_rad, speed=0.5, poll_hz=20, timeout_s=30.0):
     """Turn in place by `angle_rad` radians (positive = left, negative
     = right) using measured heading, not speed*time."""
-    start_yaw = _yaw_from_quaternion(robot.rotation)
+    start_yaw = _yaw_from_quaternion(_wait_for_rotation(robot))
     target = abs(angle_rad)
     direction = 1 if angle_rad > 0 else -1
     slowdown_started = False
+    deadline = time.time() + timeout_s
 
     robot.drive(0.0, direction * speed, None, blocking=False)
     while True:
+        if time.time() > deadline:
+            robot.stop()
+            raise RuntimeError(
+                f"turn_angle: did not reach {angle_rad}rad within "
+                f"{timeout_s}s -- odometry may have stalled or the "
+                "robot may be stuck."
+            )
+
         current_yaw = _yaw_from_quaternion(robot.rotation)
         turned = abs(_angle_wrap(current_yaw - start_yaw))
         remaining = target - turned

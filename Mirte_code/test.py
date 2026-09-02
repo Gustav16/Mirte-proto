@@ -20,4 +20,3 @@ while (True):
         OM_ang_speed = float(input('ang:'))
         OM_time = float(input('time:'))
         mirte.drive(OM_lin_speed, OM_ang_speed, OM_time)
-mirte.close()

@@ -13,9 +13,9 @@ mirte = KU_Mirte()
 
 val = input('left turn scaler:')
 
-OM_lin_speed = 0.5
-OM_ang_speed = -0.003
-OM_time = 1.85
+OM_lin_speed = 0.35
+OM_ang_speed = -0.0035
+OM_time = 2.55
 
 LT_lin_speed = 0.0
 LT_ang_speed = 1
@@ -35,7 +35,3 @@ while (True):
             
             #turn 90 degrees left
             mirte.drive(LT_lin_speed, LT_scaler*LT_ang_speed, LT_time)
-
-# ... END ...
-
-mirte.close()

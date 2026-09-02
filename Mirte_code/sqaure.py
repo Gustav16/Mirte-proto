@@ -16,8 +16,9 @@ OM_ang_speed = -0.003
 OM_time = 1.85
 
 LT_lin_speed = 0.0
-LT_ang_speed = 0.5
-LT_time = math.pi
+LT_ang_speed = 1
+LT_scaler = 0.9
+LT_time = math.pi/2
 
 #non-blocking loop for driving 1 sec
 while (True):
@@ -29,11 +30,8 @@ while (True):
             #drive one meter
             mirte.drive(OM_lin_speed, OM_ang_speed, OM_time)
             
-            #wait before excutiong next command
-            wait()
             #turn 90 degrees left
             mirte.drive(LT_lin_speed, LT_ang_speed, LT_time)
-            wait()
 
 # ... END ...
 

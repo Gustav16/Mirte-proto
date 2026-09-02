@@ -43,4 +43,4 @@ except KeyboardInterrupt:
     print("Program interrupted!")
 
 finally:
-    mirte.close()
+    

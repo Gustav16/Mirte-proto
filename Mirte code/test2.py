@@ -19,6 +19,16 @@ in real time by comparing the two wheels' tick counts.
 """
 
 import time
+#getting path to import KU_Mirte
+import sys
+import os
+import math
+sys.path.append(os.path.join(os.path.dirname(__file__), '../Mirte/ku_mirte_python'))
+
+from ku_mirte import KU_Mirte
+
+#init mirte mirte
+mirte = KU_Mirte()
 
 # --- Replace with your robot's actual motor/sensor names
 # (check your mirte_user_config.yaml or `rostopic list` / the
@@ -114,8 +124,18 @@ def drive_square(robot, side_m=0.5):
         time.sleep(0.2)
 
 
-if __name__ == "__main__":
-    # from mirte_robot import robot as mirte
-    # r = mirte.createRobot()
-    # drive_square(r, side_m=0.5)
-    pass
+
+
+try:
+
+    r = mirte.createRobot()
+    drive_square(r, side_m=0.5)
+
+    # ... jeres kode med mirte ...
+
+except KeyboardInterrupt:
+    print("Program interrupted!")
+
+finally:
+    mirte.close()
+

@@ -41,7 +41,7 @@ while (True):
         mirte.drive(LT_lin_speed, LT_scaler*LT_ang_speed, LT_time)
 
 OM_lin_speed = 0.35
-OM_ang_speed = -0.003635
+OM_ang_speed = -0.003625
 OM_time = 2.7
 
 LT_lin_speed = 0
@@ -53,10 +53,10 @@ LT_time = math.pi/2
 
 for i in range(4):
     mirte.drive(OM_lin_speed, OM_ang_speed, OM_time)
-    time.sleep(0.4)
+    time.sleep(0.5)
 
     mirte.drive(LT_lin_speed, LT_scaler*LT_ang_speed, LT_time)
 
-    time.sleep(0.4)
+    time.sleep(0.5)
 
 del mirte

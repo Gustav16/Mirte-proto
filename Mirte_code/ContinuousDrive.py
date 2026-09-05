@@ -15,9 +15,7 @@ rear_blocked = False
 STOP_DIST = 0.3 # Distance threshold in meters to stop the robot
 running = True
 
-# What the robot is currently commanded to do, so the watchdog knows which
-# sensor readings actually matter. A spin does not translate the robot, so a
-# wall in front of us is not a reason to interrupt it.
+# A spin does not translate the robot, so a wall in front of us is not a reason to interrupt it.
 motion = "stopped"  # "forward" | "spin" | "reverse" | "stopped"
 
 # --- Speed constants ---
@@ -28,27 +26,20 @@ REV_SPEED = -0.15
 TURN_RATE = 0.375  # scaled with FWD_SPEED so the arc radius stays at 0.4m
 # A spin has no forward component, both wheels only get w*L/2, so the rate has
 # to be a lot higher than feels natural or both wheels sit in the dead zone.
-SPIN_RATE = 1.5    # for turning on the spot, no forward motion
+SPIN_RATE = 1.5 
 
 # Drift correction. This is the angular speed we have to add to make the robot
-# actually drive straight when we ask it to go straight.
 # TODO: measure this at FWD_SPEED. The -0.003625 we found in test.py was measured
-# at 0.35 m/s, so it most likely does not transfer directly to 0.15 m/s.
 DRIFT_FIX = 0.0
 # TODO: check if reverse drifts the same way as forward. If it does not, this
-# needs its own measured value instead of reusing DRIFT_FIX.
 REV_DRIFT_FIX = DRIFT_FIX
 # TODO: decide if the arcs need drift correction too. It matters much less there
-# than when driving straight, so it is left off for now.
 
-# The wheels have a dead zone, below roughly 0.12 m/s of wheel speed the motor
-# buzzes but the wheel does not turn. On an arc the inner wheel gets v - w*L/2
-# and on a spin both wheels only get w*L/2, so those are the first to stall.
+
 # SPEED_SCALE multiplies everything sent to the real robot to lift the wheels
-# out of that dead zone. It scales linear and angular equally, so turn radius
-# is unchanged. Adjust it live with the + and - keys.
+# out of that dead zone. Adjust it live with the + and - keys.
 SPEED_SCALE = 1.0
-BASE_SPEED_MOD = 2.38  # the driver defaults, see drive_pub.py
+BASE_SPEED_MOD = 2.38  
 BASE_TURN_MOD = 2.38
 
 #init mirte mirte
@@ -119,10 +110,6 @@ t.start()
 
 # --- Main driving loop ---
 # Every command latches, the robot keeps doing it until we send something else.
-# We record what kind of motion we asked for in `motion`, so the watchdog knows
-# which sonar readings are relevant. Forward and the arcs are guarded by the
-# front sensors, reverse by the rear ones, and the spins are not guarded at all
-# since they do not move the robot anywhere.
 print(f"arc radius is {FWD_SPEED / TURN_RATE:.2f}m at the current speeds")
 print(f"speed scale is {SPEED_SCALE:.2f}, use + and - to adjust it while driving")
 

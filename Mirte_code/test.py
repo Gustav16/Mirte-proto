@@ -59,13 +59,20 @@ LT_time = math.pi/2
 
 #     time.sleep(0.5)
 
-#drive a cicle'
 OM_lin_speed = 0.35
 OFFSET = -0.003625
 LT_ang_speed = 1
 LT_scaler = 0.927
 LT_time = math.pi*2/LT_ang_speed
 
-mirte.drive(OM_lin_speed, LT_scaler*LT_ang_speed - OFFSET, LT_time)
+while (True):
+    msg = input('press (q) to quit, or press any other key circle:\n')
+    if msg == 'q':
+        break
+    else:
+        LT_scaler = float(input('scaler'))
+        mirte.drive(OM_lin_speed, LT_scaler*LT_ang_speed - OFFSET, LT_time)
+
+mirte.drive(OM_lin_speed, LT_ang_speed - OFFSET, LT_time)
 
 del mirte

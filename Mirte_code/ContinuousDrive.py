@@ -26,7 +26,9 @@ motion = "stopped"  # "forward" | "spin" | "reverse" | "stopped"
 FWD_SPEED = 0.15   # must stay above ~0.12 or the robot will not move at all
 REV_SPEED = -0.15
 TURN_RATE = 0.375  # scaled with FWD_SPEED so the arc radius stays at 0.4m
-SPIN_RATE = 0.4    # for turning on the spot, no forward motion
+# A spin has no forward component, both wheels only get w*L/2, so the rate has
+# to be a lot higher than feels natural or both wheels sit in the dead zone.
+SPIN_RATE = 1.5    # for turning on the spot, no forward motion
 
 # Drift correction. This is the angular speed we have to add to make the robot
 # actually drive straight when we ask it to go straight.
@@ -39,8 +41,19 @@ REV_DRIFT_FIX = DRIFT_FIX
 # TODO: decide if the arcs need drift correction too. It matters much less there
 # than when driving straight, so it is left off for now.
 
+# The wheels have a dead zone, below roughly 0.12 m/s of wheel speed the motor
+# buzzes but the wheel does not turn. On an arc the inner wheel gets v - w*L/2
+# and on a spin both wheels only get w*L/2, so those are the first to stall.
+# SPEED_SCALE multiplies everything sent to the real robot to lift the wheels
+# out of that dead zone. It scales linear and angular equally, so turn radius
+# is unchanged. Adjust it live with the + and - keys.
+SPEED_SCALE = 1.0
+BASE_SPEED_MOD = 2.38  # the driver defaults, see drive_pub.py
+BASE_TURN_MOD = 2.38
+
 #init mirte mirte
 mirte = KU_Mirte()
+mirte.set_driving_modifier(BASE_SPEED_MOD * SPEED_SCALE, BASE_TURN_MOD * SPEED_SCALE)
 
 # ground check, we will continuesly check if something is infront of the
 # robot, and print the distance to the object infront of the robot..
@@ -111,10 +124,11 @@ t.start()
 # front sensors, reverse by the rear ones, and the spins are not guarded at all
 # since they do not move the robot anywhere.
 print(f"arc radius is {FWD_SPEED / TURN_RATE:.2f}m at the current speeds")
+print(f"speed scale is {SPEED_SCALE:.2f}, use + and - to adjust it while driving")
 
 try:
     while True:
-        key = input("cmd (w=fwd, a/d=arc, z/c=spin, x=rev, s=stop, q=quit): ").strip().lower()
+        key = input("cmd (w=fwd, a/d=arc, z/c=spin, x=rev, s=stop, +/-=speed, q=quit): ").strip().lower()
 
         if key == 'q':
             break  # Exit the loop and stop the program
@@ -148,6 +162,16 @@ try:
                 continue
             motion = "reverse"
             mirte.drive(REV_SPEED, REV_DRIFT_FIX, None, blocking = False)  # Reverse
+        elif key == '+':
+            # Takes effect immediately, even mid-motion, so you can bump this
+            # while the robot is spinning and watch the wheels break free.
+            SPEED_SCALE = min(SPEED_SCALE + 0.25, 4.0)
+            mirte.set_driving_modifier(BASE_SPEED_MOD * SPEED_SCALE, BASE_TURN_MOD * SPEED_SCALE)
+            print(f"speed scale now {SPEED_SCALE:.2f}")
+        elif key == '-':
+            SPEED_SCALE = max(SPEED_SCALE - 0.25, 0.25)
+            mirte.set_driving_modifier(BASE_SPEED_MOD * SPEED_SCALE, BASE_TURN_MOD * SPEED_SCALE)
+            print(f"speed scale now {SPEED_SCALE:.2f}")
         elif key == 's':
             mirte.stop()  # Stop the robot
             motion = "stopped"

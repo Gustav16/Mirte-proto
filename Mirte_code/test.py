@@ -63,8 +63,8 @@ OM_lin_speed = 0.35
 OFFSET = -0.003625
 LT_ang_speed = 1
 RT_ang_speed = -1
-LT_scaler = 0.927
-LT_time = math.pi*2/LT_ang_speed
+LT_scaler = 1
+CIRCLE_TIME = math.pi*2/LT_ang_speed
 
 while (True):
     msg = input('press (q) to quit, or press any other key circle:\n')
@@ -72,10 +72,23 @@ while (True):
         break
     else:
         LT_scaler = float(input('scaler'))
-        mirte.drive(OM_lin_speed, LT_scaler*LT_ang_speed - OFFSET, LT_time)
+        mirte.drive(OM_lin_speed, LT_scaler*LT_ang_speed - OFFSET, CIRCLE_TIME)
 
         RT_scaler = float(input('right scaler:'))
-        mirte.drive(OM_lin_speed, RT_scaler*RT_ang_speed - OFFSET, LT_time)
+        mirte.drive(OM_lin_speed, RT_scaler*RT_ang_speed - OFFSET, CIRCLE_TIME)
+RT_scaler = 1.05
+LT_scaler = 1
+for i in range(4):
+    mirte.drive(OM_lin_speed, LT_scaler*LT_ang_speed - OFFSET, CIRCLE_TIME, False)
+    start = time.perf_counter()
+
+    while (time.perf_counter() .now - start < CIRCLE_TIME):
+        time.sleep(0.01)
+    mirte.drive(OM_lin_speed, RT_scaler*RT_ang_speed - OFFSET, CIRCLE_TIME, False)
+    start = time.perf_counter()
+    while (time.now - start < CIRCLE_TIME):
+        time.sleep(0.01)
+    
 
 
 del mirte

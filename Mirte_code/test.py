@@ -19,7 +19,24 @@ while (True):
         OM_lin_speed = 0.35
         #OM_ang_speed = -0.0035
         #OM_time = 2.55
+
+        #new
+        #  -0.00365
+        # time:2.7
         OM_ang_speed = float(input('ang:'))
         OM_time = float(input('time:'))
         mirte.drive(OM_lin_speed, OM_ang_speed, OM_time)
+
+while (True):
+    msg = input('press (q) to quit, or press any other key rotate:\n')
+    if msg == 'q':
+        break
+    else:
+        LT_lin_speed = 0
+        #OM_ang_speed = -0.0035
+        #OM_time = 2.55
+        LT_ang_speed = 0.5
+        LT_scaler = float(input('scaler:'))
+        LT_time = math.pi
+        mirte.drive(LT_lin_speed, LT_scaler*LT_ang_speed, LT_time)
 del mirte

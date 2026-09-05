@@ -41,7 +41,7 @@ while (True):
         mirte.drive(LT_lin_speed, LT_scaler*LT_ang_speed, LT_time)
 
 OM_lin_speed = 0.35
-OM_ang_speed = -0.0036
+OM_ang_speed = -0.00363
 OM_time = 2.7
 
 LT_lin_speed = 0

@@ -35,8 +35,8 @@ while (True):
         LT_lin_speed = 0
         #OM_ang_speed = -0.0035
         #OM_time = 2.55
-        LT_ang_speed = 0.5
+        LT_ang_speed = 1
         LT_scaler = float(input('scaler:'))
-        LT_time = math.pi
+        LT_time = math.pi/2
         mirte.drive(LT_lin_speed, LT_scaler*LT_ang_speed, LT_time)
 del mirte

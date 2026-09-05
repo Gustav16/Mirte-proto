@@ -86,7 +86,7 @@ for i in range(4):
         time.sleep(0.01)
     mirte.drive(OM_lin_speed, RT_scaler*RT_ang_speed - OFFSET, CIRCLE_TIME, False)
     start = time.perf_counter()
-    while (time.now - start < CIRCLE_TIME):
+    while (time.perf_counter() - start < CIRCLE_TIME):
         time.sleep(0.01)
     
 

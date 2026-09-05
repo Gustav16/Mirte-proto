@@ -39,4 +39,24 @@ while (True):
         LT_scaler = float(input('scaler:'))
         LT_time = math.pi/2
         mirte.drive(LT_lin_speed, LT_scaler*LT_ang_speed, LT_time)
+
+OM_lin_speed = 0.35
+OM_ang_speed = -0.00365
+OM_time = 2.7
+
+LT_lin_speed = 0
+#OM_ang_speed = -0.0035
+#OM_time = 2.55
+LT_ang_speed = 1
+LT_scaler = 0.925
+LT_time = math.pi/2
+
+for i in range(4):
+    mirte.drive(OM_lin_speed, OM_ang_speed, OM_time)
+    time.sleep(0.4)
+
+    mirte.drive(LT_lin_speed, LT_scaler*LT_ang_speed, LT_time)
+
+    time.sleep(0.4)
+
 del mirte

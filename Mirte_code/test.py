@@ -16,7 +16,9 @@ while (True):
     if msg == 'q':
         break
     else:
-        OM_lin_speed = float(input('speed:'))
+        OM_lin_speed = 0.35
+        #OM_ang_speed = -0.0035
+        #OM_time = 2.55
         OM_ang_speed = float(input('ang:'))
         OM_time = float(input('time:'))
         mirte.drive(OM_lin_speed, OM_ang_speed, OM_time)

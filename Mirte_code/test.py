@@ -73,6 +73,9 @@ while (True):
         LT_scaler = float(input('scaler'))
         mirte.drive(OM_lin_speed, LT_scaler*LT_ang_speed - OFFSET, LT_time)
 
+        RT_scaler = float(input('right scaler:'))
+        mirte.drive(OM_lin_speed, RT_scaler*LT_ang_speed - OFFSET, LT_time)
+
 mirte.drive(OM_lin_speed, LT_ang_speed - OFFSET, LT_time)
 
 del mirte

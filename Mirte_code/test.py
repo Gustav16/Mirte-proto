@@ -60,7 +60,7 @@ for j in range(4):
         time.sleep(0.5)
 
 OM_lin_speed = 0.35
-OFFSET = -0.0036
+OFFSET = -0.00361
 LT_ang_speed = 1
 RT_ang_speed = -1
 LT_scaler = 1

@@ -48,7 +48,7 @@ LT_lin_speed = 0
 #OM_ang_speed = -0.0035
 #OM_time = 2.55
 LT_ang_speed = 1
-LT_scaler = 0.95
+LT_scaler = 0.935
 LT_time = math.pi/2
 for j in range(4):
     for i in range(4):

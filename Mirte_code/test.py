@@ -76,7 +76,7 @@ while (True):
 
         RT_scaler = float(input('right scaler:'))
         mirte.drive(OM_lin_speed, RT_scaler*RT_ang_speed - OFFSET, CIRCLE_TIME)
-RT_scaler = 1.05
+RT_scaler = 1
 LT_scaler = 1
 for i in range(4):
     mirte.drive(OM_lin_speed, LT_scaler*LT_ang_speed - OFFSET, CIRCLE_TIME, False)

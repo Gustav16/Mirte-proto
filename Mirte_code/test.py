@@ -63,7 +63,7 @@ OM_lin_speed = 0.35
 OFFSET = -0.003625
 LT_ang_speed = 1
 RT_ang_speed = -1
-LT_scaler = 0.95
+LT_scaler = 0.93.5
 CIRCLE_TIME = math.pi*2/LT_ang_speed
 
 while (True):

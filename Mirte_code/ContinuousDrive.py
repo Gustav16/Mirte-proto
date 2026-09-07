@@ -12,7 +12,8 @@ from ku_mirte import KU_Mirte
 # --- Setup ---
 blocked = False
 rear_blocked = False
-STOP_DIST = 0.3 # Distance threshold in meters to stop the robot
+
+ # Distance threshold in meters to stop the robot
 running = True
 
 # A spin does not translate the robot, so a wall in front of us is not a reason to interrupt it.

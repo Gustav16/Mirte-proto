@@ -52,7 +52,7 @@ LT_scaler = 1.15
 LT_time = math.pi/2
 for j in range(4):
     for i in range(4):
-        mirte.drive(OM_lin_speed, OM_ang_speed, OM_time*(1+0.1*j))
+        mirte.drive(OM_lin_speed, OM_ang_speed, OM_time)
         time.sleep(0.5)
 
         mirte.drive(LT_lin_speed, LT_scaler*LT_ang_speed*(1+0.01*j), LT_time)

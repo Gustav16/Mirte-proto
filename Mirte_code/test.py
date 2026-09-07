@@ -55,7 +55,7 @@ for j in range(4):
         mirte.drive(OM_lin_speed, OM_ang_speed, OM_time)
         time.sleep(0.5)
 
-        mirte.drive(LT_lin_speed, LT_scaler*LT_ang_speed*(1+0.01*j), LT_time)
+        mirte.drive(LT_lin_speed, LT_scaler*LT_ang_speed*(1+0.05*j), LT_time)
 
         time.sleep(0.5)
 

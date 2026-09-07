@@ -2,7 +2,7 @@
 import sys
 import os
 import math
-sys.path.append(os.path.join(os.path.dirname(__file__), '../Mirte/ku_mirte_python'))
+sys.path.append(os.path.join(os.path.dirname(__file__), '../../Mirte/ku_mirte_python'))
 
 import time
 from time import sleep

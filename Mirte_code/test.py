@@ -48,19 +48,19 @@ LT_lin_speed = 0
 #OM_ang_speed = -0.0035
 #OM_time = 2.55
 LT_ang_speed = 1
-LT_scaler = 0.927
+LT_scaler = 1.15
 LT_time = math.pi/2
+for j in range(4):
+    for i in range(4):
+        mirte.drive(OM_lin_speed, OM_ang_speed, OM_time)
+        time.sleep(0.5)
 
-for i in range(4):
-    mirte.drive(OM_lin_speed, OM_ang_speed, OM_time)
-    time.sleep(0.5)
+        mirte.drive(LT_lin_speed, LT_scaler*LT_ang_speed, LT_time*(1+0.05*j))
 
-    mirte.drive(LT_lin_speed, LT_scaler*LT_ang_speed, LT_time)
-
-    time.sleep(0.5)
+        time.sleep(0.5)
 
 OM_lin_speed = 0.35
-OFFSET = -0.003625
+OFFSET = -0.00361
 LT_ang_speed = 1
 RT_ang_speed = -1
 LT_scaler = 1

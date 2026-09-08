@@ -55,7 +55,7 @@ sampler = lambda n: np.random.normal(5, 4, n)
 print(SIR(10, p, q, sampler)) 
 for N in [20, 100, 1000]:
     samples = SIR(N, p, q, sampler)
-    x = np.linspace(1, 15, 1000)
+    x = np.linspace(-10, 20, 1000)
     plt.figure()
     
     # density=True makes the histogram a probability density

@@ -3,7 +3,7 @@ import os
 import math
 import time
 
-sys.path.append(os.path.join(os.path.dirname(__file__), '../Mirte/ku_mirte_python'))
+sys.path.append(os.path.join(os.path.dirname(__file__), '../../Mirte/ku_mirte_python'))
 from ku_mirte import KU_Mirte
 
 

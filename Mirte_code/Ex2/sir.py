@@ -16,7 +16,7 @@ sampler = lambda n: np.random.uniform(1, 15, n)
 
 def SIR(N: int, p, q, sampler):
     """Function for Sampling-Importance-Resampling,
-        takes a sampling amount N: int, a pdf p: x -> float and pdf q: x -> float and a sampler: N -> (float [0;1))^N as arguments"""
+        takes a sampling amount N: int, a pdf p: x -> float and pdf q: x -> float and a sampler: N -> (i.i.d sample)^N as arguments"""
     particles = sampler(N)
     weights = p(particles)/q(particles)
     weights = weights /np.sum(weights)

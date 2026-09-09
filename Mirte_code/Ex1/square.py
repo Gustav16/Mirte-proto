@@ -6,7 +6,7 @@ sys.path.append(os.path.join(os.path.dirname(__file__), '../../Mirte/ku_mirte_py
 
 import time
 from time import sleep
-from ku_mirte import KU_Mirte
+from Mirte.ku_mirte_python.ku_mirte import KU_Mirte
 
 #init mirte mirte
 mirte = KU_Mirte()

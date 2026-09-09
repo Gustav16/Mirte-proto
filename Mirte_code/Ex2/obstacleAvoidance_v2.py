@@ -33,7 +33,7 @@ from ku_mirte import KU_Mirte
 
 # Speed/spin values and modifiers carried over from ContinuousDrive.py, which
 # calibrated them against the real robot (see that file's comments).
-FWD_SPEED = 0.15   # m/s, must stay above ~0.12 or the robot will not move at all
+FWD_SPEED = 0.35   # m/s, must stay above ~0.12 or the robot will not move at all
 SPIN_RATE = 1.5    # rad/s, has to be this high or the wheels sit in the dead zone
 DRIFT_FIX = 0.0    # TODO: measure drift correction at FWD_SPEED, same as ContinuousDrive.py
 

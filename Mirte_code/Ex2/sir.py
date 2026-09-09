@@ -42,7 +42,7 @@ for N in [20, 100, 1000]:
 
     plt.xlabel("x")
     plt.ylabel("Probability density")
-    plt.title(f"SIR with N = {N}")
+    plt.title(f"SIR Q1 with N = {N}")
     plt.legend()
     plt.show()
 
@@ -66,6 +66,6 @@ for N in [20, 100, 1000]:
 
     plt.xlabel("x")
     plt.ylabel("Probability density")
-    plt.title(f"SIR with N = {N}")
+    plt.title(f"SIR Q2 with N = {N}")
     plt.legend()
     plt.show()

@@ -29,7 +29,7 @@ mirte.set_driving_modifier(
 
 TURN_DURATION = (math.pi / 2) / SPIN_RATE
 
-SAFE_DISTANCE = 0.15
+SAFE_DISTANCE = 0.25
 
 # En retning skal have lidt mere plads,
 # før vi aktivt vælger at køre den vej

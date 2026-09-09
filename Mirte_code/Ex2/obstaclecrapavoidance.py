@@ -40,7 +40,7 @@ SLOW_DISTANCE = 0.40
 
 # Stop and start the avoidance manoeuvre only when
 # we are quite close to the obstacle
-STOP_DISTANCE = 0.20
+STOP_DISTANCE = 0.25
 
 # Emergency distance used while doing the avoidance manoeuvre
 EMERGENCY_DISTANCE = 0.12
@@ -83,7 +83,7 @@ REAR_SEEN_DISTANCE = 0.65
 
 # After having seen it, it must become larger than this value
 # for several readings before we consider the obstacle passed.
-REAR_CLEAR_DISTANCE = 0.75
+REAR_CLEAR_DISTANCE = 0.50
 
 REAR_CLEAR_READINGS_REQUIRED = 4
 

@@ -10,11 +10,6 @@ sys.path.append(
 
 from ku_mirte import KU_Mirte
 
-
-# -------------------------
-# Settings
-# -------------------------
-
 SIDE_SPEED = 0.35       # m/s
 DISTANCE = 1.0          # meter
 
@@ -23,11 +18,6 @@ BASE_TURN_MOD = 2.38
 
 # Tid = afstand / hastighed
 SIDE_TIME = DISTANCE / SIDE_SPEED
-
-
-# -------------------------
-# Start robot
-# -------------------------
 
 mirte = KU_Mirte()
 mirte.set_driving_modifier(

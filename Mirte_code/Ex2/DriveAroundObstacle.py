@@ -133,18 +133,25 @@ def update_position():
 
 def move_one_step():
 
-    # Brug samme ligeud-korrektion som square.py
+    # Kør kontinuerligt fremad
     mirte.drive(
         FWD_SPEED,
         FWD_ANG_SPEED,
-        FORWARD_STEP
+        None,
+        blocking=False
     )
+
+    # Vent lidt før næste sonar-kontrol
+    time.sleep(FORWARD_STEP)
 
     update_position()
 
 
 def turn_90(direction):
     global heading
+
+    # Stop fremadbevægelsen før drejning
+    mirte.stop()
 
     # direction:
     #  1 = venstre

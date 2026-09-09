@@ -5,6 +5,7 @@ import os
 import math
 import time
 import threading
+import traceback
 
 sys.path.append(os.path.join(os.path.dirname(__file__), '../Mirte/ku_mirte_python'))
 from ku_mirte import KU_Mirte
@@ -13,8 +14,14 @@ from ku_mirte import KU_Mirte
 blocked = False
 rear_blocked = False
 
- # Distance threshold in meters to stop the robot
+STOP_DIST = 0.3  # Distance threshold in meters to stop the robot
 running = True
+
+# Set to False if the sonar watchdog thread ever dies. The main loop refuses
+# every motion command while this is False. A dead watchdog means no obstacle
+# detection at all, and it used to fail silently -- the thread is a daemon, so
+# it died while the prompt kept happily accepting drive commands.
+watchdog_alive = True
 
 # A spin does not translate the robot, so a wall in front of us is not a reason to interrupt it.
 motion = "stopped"  # "forward" | "spin" | "reverse" | "stopped"
@@ -78,33 +85,53 @@ if "--groundcheck" in sys.argv:
 # We will initiate a get sonar loop, that continually monitors and.
 # stops the robot if it is too close to a wall.
 def sonar_watchdog():
-    global blocked, rear_blocked, motion
-    while running:
-        d = mirte.sonar
-        front = min(d['front_left'], d['front_right'])
-        rear = min(d['rear_left'], d['rear_right'])
+    global blocked, rear_blocked, motion, watchdog_alive
+    try:
+        while running:
+            d = mirte.sonar
+            front = min(d['front_left'], d['front_right'])
+            rear = min(d['rear_left'], d['rear_right'])
 
-        # blocked just tracks whether something is in front of us. Whether we
-        # actually stop depends on if we are driving into it or not.
-        if front < STOP_DIST:
-            if motion == "forward" and not blocked:
-                mirte.stop()
-                motion = "stopped"
-                print(f"blocked in front at {front:.2f}m")
-            blocked = True
-        else:
-            blocked = False
+            # blocked just tracks whether something is in front of us. Whether we
+            # actually stop depends on if we are driving into it or not.
+            if front < STOP_DIST:
+                if motion == "forward" and not blocked:
+                    mirte.stop()
+                    motion = "stopped"
+                    print(f"blocked in front at {front:.2f}m")
+                blocked = True
+            else:
+                blocked = False
 
-        if rear < STOP_DIST:
-            if motion == "reverse" and not rear_blocked:
-                mirte.stop()
-                motion = "stopped"
-                print(f"blocked behind at {rear:.2f}m")
-            rear_blocked = True
-        else:
-            rear_blocked = False
+            if rear < STOP_DIST:
+                if motion == "reverse" and not rear_blocked:
+                    mirte.stop()
+                    motion = "stopped"
+                    print(f"blocked behind at {rear:.2f}m")
+                rear_blocked = True
+            else:
+                rear_blocked = False
 
-        time.sleep(0.05)  # Sleep for 50 milliseconds to avoid busy waiting
+            time.sleep(0.05)  # Sleep for 50 milliseconds to avoid busy waiting
+
+    except Exception as e:
+        # Stop first, explain second. Everything below this point is about making
+        # sure a human cannot miss that safety is gone.
+        watchdog_alive = False
+        blocked = True
+        rear_blocked = True
+        try:
+            mirte.stop()
+            motion = "stopped"
+        except Exception:
+            pass
+        print("\n" + "!" * 70)
+        print(f"SONAR WATCHDOG DIED: {type(e).__name__}: {e}")
+        print("No obstacle detection. All motion commands are refused from now on.")
+        print("Press q to quit, fix the fault, then restart the script.")
+        print("!" * 70)
+        traceback.print_exc()
+
 
 t = threading.Thread(target=sonar_watchdog, daemon=True)
 t.start()
@@ -117,6 +144,12 @@ print(f"speed scale is {SPEED_SCALE:.2f}, use + and - to adjust it while driving
 try:
     while True:
         key = input("cmd (w=fwd, a/d=arc, z/c=spin, x=rev, s=stop, +/-=speed, q=quit): ").strip().lower()
+
+        # Spins are not covered by `blocked`, so this guard has to be separate
+        # from the per-direction checks below.
+        if key in ("w", "a", "d", "z", "c", "x") and not watchdog_alive:
+            print("Refusing to move: sonar watchdog is dead, no obstacle detection.")
+            continue
 
         if key == 'q':
             break  # Exit the loop and stop the program

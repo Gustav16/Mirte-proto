@@ -26,7 +26,18 @@ distortion_coeffs = np.zeros(5)
 
 #set values
 arucoMarkerLength = 145
-intrinsic_matrix = None
+f = 609.9
+fx = f
+fy = f
+
+cx = 640 / 2
+cy = 480 / 2
+
+intrinsic_matrix = np.array([
+    [fx,  0, cx],
+    [ 0, fy, cy],
+    [ 0,  0,  1]
+], dtype=np.float32)
 arucoDict = cv2.aruco.getPredefinedDictionary(cv2.aruco.DICT_6X6_250)
 
 

@@ -76,7 +76,8 @@ while not reached_target:
 
     if len(indices) == 0:
         # Lost target -> go back to SEARCHING
-        'lost target'
+
+        print('lost target')
         target_id = None
         mirte.stop()
         continue
@@ -104,7 +105,7 @@ while not reached_target:
     # Drive toward target
     mirte.drive(LIN_speed, angle, 4, blocking=False)
 
-    time.sleep(0.3)
+    time.sleep(0.1)
 
 
 

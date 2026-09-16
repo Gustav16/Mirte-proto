@@ -22,7 +22,7 @@ time.sleep(1)
 
 mirte = KU_Mirte()
 
-LIN_speed = 0.35
+LIN_speed = 0.30
 
 #set success dist
 success_distance = 300
@@ -62,8 +62,7 @@ while not reached_target:
 
         if ids is None or ids.size == 0:
             # Keep rotating until we see an ArUco
-            mirte.drive(0, 0.7, 1, blocking=False)
-            time.sleep(0.2)
+            mirte.drive(0, 0.5, 1, blocking=False)
             continue
 
         # We found one -> lock onto it
@@ -104,9 +103,6 @@ while not reached_target:
 
     # Drive toward target
     mirte.drive(LIN_speed, angle, 4, blocking=False)
-
-    time.sleep(0.1)
-
 
 
 # Finished successfully

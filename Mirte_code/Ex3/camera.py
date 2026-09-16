@@ -1,19 +1,21 @@
-#ædnringer
-
-import cv2 # Import the OpenCV library
+import cv2
 import time
-
 from pprint import *
 import sys
 import os
 import math
-import time
 import numpy as np
 
-sys.path.append(os.path.join(os.path.dirname(__file__), '../../../Mirte/ku_mirte_python'))
-from Mirte.ku_mirte_python.ku_mirte import KU_Mirte
+sys.path.append(
+    os.path.join(
+        os.path.dirname(__file__),
+        '../../Mirte/ku_mirte_python'
+    )
+)
 
-time.sleep(1)  # wait for camera to setup
+from ku_mirte import KU_Mirte
+
+time.sleep(1)
 
 
 #program start

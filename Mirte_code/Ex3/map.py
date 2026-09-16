@@ -8,12 +8,15 @@ import math
 import time
 import numpy as np
 
+
 sys.path.append(
     os.path.join(
         os.path.dirname(__file__),
         '../../Mirte/ku_mirte_python'
     )
 )
+
+from ku_mirte import KU_Mirte
 
 time.sleep(1)  # wait for camera to setup
 

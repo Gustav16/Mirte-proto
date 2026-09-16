@@ -25,7 +25,7 @@ mirte = KU_Mirte()
 LIN_speed = 0.35
 
 #set success dist
-success_distance = 30
+success_distance = 300
 reached_target = False
 
 distortion_coeffs = np.zeros(5)

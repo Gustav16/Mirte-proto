@@ -65,14 +65,14 @@ while cv2.waitKey(1) != ord('q'):
         arucoMarkerLength,
         intrinsic_matrix,
         distortion_coeffs
-    )
-    id_set = set()
-    for i in range(len(ids)):
-        landmark_id = ids[i][0]
-        if landmark_id not in id_set:
-            id_set.add(landmark_id)
-            x, y, z = tvecs[i][0]
-            landmark_map.append([(x, z), landmark_id])
+        )
+        id_set = set()
+        for i in range(len(ids)):
+            landmark_id = ids[i][0]
+            if landmark_id not in id_set:
+                id_set.add(landmark_id)
+                x, y, z = tvecs[i][0]
+                landmark_map.append([(x, z), landmark_id])
     print(landmark_map)
     time.sleep(0.3)
 

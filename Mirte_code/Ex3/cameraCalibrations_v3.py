@@ -91,10 +91,6 @@ def main():
                 else:
                     print(f"V3: FEJL - kunne ikke gemme {filename}")
 
-            elif key == ord("q"):
-                print("V3: stopper.")
-                break
-
     except KeyboardInterrupt:
         print("\nV3: stoppet med Ctrl+C.")
 

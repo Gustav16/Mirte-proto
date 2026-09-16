@@ -27,7 +27,7 @@ reached_target = False
 distortion_coeffs = np.zeros(5)
 
 #set values
-arucoMarkerLength = None
+arucoMarkerLength = 145
 intrinsic_matrix = None
 arucoDict = cv2.aruco.getPredefinedDictionary(cv2.aruco.DICT_6X6_250)
 

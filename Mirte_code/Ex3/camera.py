@@ -22,10 +22,10 @@ time.sleep(1)
 
 mirte = KU_Mirte()
 
-LIN_speed = 0.40
+LIN_speed = 0.30
 
 #set success dist
-success_distance = 300
+success_distance = 400
 reached_target = False
 
 distortion_coeffs = np.zeros(5)

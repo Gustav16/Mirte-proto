@@ -1,3 +1,5 @@
+#ædnringer
+
 import cv2 # Import the OpenCV library
 import time
 

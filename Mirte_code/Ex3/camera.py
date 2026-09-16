@@ -62,7 +62,7 @@ while not reached_target:
 
         if ids is None or ids.size == 0:
             # Keep rotating until we see an ArUco
-            mirte.drive(0, 0.2, 1, blocking=False)
+            mirte.drive(0, 0.4, 1, blocking=False)
             time.sleep(0.2)
             continue
 
@@ -76,6 +76,7 @@ while not reached_target:
 
     if len(indices) == 0:
         # Lost target -> go back to SEARCHING
+        'lost target'
         target_id = None
         mirte.stop()
         continue
@@ -98,7 +99,7 @@ while not reached_target:
         reached_target = True
         break
 
-    angle = np.arctan2(x, z)
+    angle = -np.arctan2(x, z)
 
     # Drive toward target
     mirte.drive(LIN_speed, angle, 4, blocking=False)

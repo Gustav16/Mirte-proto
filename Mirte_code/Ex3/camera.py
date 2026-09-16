@@ -22,7 +22,7 @@ time.sleep(1)
 
 mirte = KU_Mirte()
 
-LIN_speed = 0.30
+LIN_speed = 0.40
 
 #set success dist
 success_distance = 300

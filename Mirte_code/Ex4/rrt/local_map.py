@@ -56,11 +56,12 @@ class LocalMap:
     Local map class
     """
     #landmark co
-    def __init__(self, landmarks = [], landmark_radius=0.4, mirte_radius = 0.2, camera_offset = Camera_offset):
+    def __init__(self, landmarks = [], landmark_radius=0.4, mirte_radius = 0.2, camera_offset = Camera_offset, low=(0, 0), high=(2, 2), res=0.1):
         self.landmarks = landmarks
         self.mirte_radius = mirte_radius
         self.landmark_radius = landmark_radius
         self.camera_offset = camera_offset
+        self.map_area = [low, high]    #a rectangular area    
 
     def update(self, mirte):
         self.landmarks = self.get_map_from_mirte(mirte)
@@ -101,6 +102,9 @@ class LocalMap:
 
                     landmark_map.append([landmark, landmark_id])
         return landmark_map
+    def draw_map(self):
+        #note the x-y axes difference between imshow and plot
+        pass
         
         
 

@@ -36,24 +36,6 @@ from robot_models import RobotModel
 class MirteModel(RobotModel):
 
     def forward_dyn(self, x, u, T):
-    path = []
-
-    x_current = x.copy()
-
-    for i in range(T):
-        distance, dtheta = u[i]
-
-        x_current[2] += dtheta
-        x_current[0] += distance * np.cos(x_current[2])
-        x_current[1] += distance * np.sin(x_current[2])
-
-        path.append(x_current[:2].copy())
-
-    return path
-
-    class MirteModel(RobotModel):
-
-    def forward_dyn(self, x, u, T):
         path = [x.copy()]
 
         theta = 0.0  # orientation used internally

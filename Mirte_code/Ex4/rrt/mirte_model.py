@@ -31,7 +31,8 @@ The most basic RRT implementation just needs PointMassModel
 
 class MirteModel(RobotModel):
 
-    def __init__(self):
+    def __init__(self, ctrl_range):
+        super().__init__(ctrl_range)
         self.theta = 0.0
 
     def forward_dyn(self, x, u, T):

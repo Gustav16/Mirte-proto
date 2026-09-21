@@ -21,7 +21,7 @@ sys.path.append(
 
 from ku_mirte import KU_Mirte
 
-   distortion_coeffs = np.zeros(5)
+distortion_coeffs = np.zeros(5)
 
 arucoMarkerLength = 145
 f = 609.9
@@ -37,7 +37,7 @@ intrinsic_matrix = np.array([
     [ 0,  0,  1]
 ], dtype=np.float32)
 arucoDict = cv2.aruco.getPredefinedDictionary(cv2.aruco.DICT_6X6_250)
-Camera_offset = = np.array([
+Camera_offset = np.array([
             0,   # x: 0 cm left
             0.10   # z: 8 cm forward
         ])

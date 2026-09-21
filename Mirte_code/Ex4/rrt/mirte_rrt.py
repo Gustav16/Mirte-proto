@@ -204,12 +204,13 @@ import grid_occ, mirte_model, local_map
 
 
 def Execute_path(path, mirte):
+    path.reverse()
     current_pose = np.array([0.0, 0.0, 0.0])
 
     linear_speed = 0.3   # m/s
     angular_speed = 0.5   # rad/s
 
-    for point in path[1:]:
+    for point in path[::-1][1:]:
         dx = point[0] - current_pose[0]
         dy = point[1] - current_pose[1]
 

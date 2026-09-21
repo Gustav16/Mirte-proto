@@ -9,6 +9,15 @@ https://github.com/AtsushiSakai/PythonRobotics/blob/master/PathPlanning/RRT/rrt.
 import numpy as np
 import matplotlib.pyplot as plt
 #from matplotlib.animation import FFMpegWriter
+import numpy as np
+from robot_models import RobotModel
+
+import cv2 # Import the OpenCV library
+import time
+
+from pprint import *
+import sys
+import os
 
 class RRT:
     """
@@ -259,7 +268,7 @@ def main():
     metadata = dict(title="RRT Test")
     #writer = FFMpegWriter(fps=15, metadata=metadata)
     writer = None
-    #fig = plt.figure()
+    fig = plt.figure()
     if writer is not None:
         with writer.saving(fig, "rrt_test.mp4", 100):
             path = rrt.planning(animation=show_animation, writer=writer)

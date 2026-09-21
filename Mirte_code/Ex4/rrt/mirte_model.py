@@ -29,10 +29,6 @@ This provides an extendable interface to make the simulation of robot motion ind
 The most basic RRT implementation just needs PointMassModel
 """
 
-import numpy as np
-from robot_models import RobotModel
-
-
 class MirteModel(RobotModel):
 
     def forward_dyn(self, x, u, T):

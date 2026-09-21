@@ -56,7 +56,7 @@ class LocalMap:
     Local map class
     """
     #landmark co
-    def __init__(self, landmarks = [], landmark_radius=0.4, mirte_radius = 0.2, camera_offset = Camera_offset, low=(0, 0), high=(2, 2), res=0.1):
+    def __init__(self, landmarks = [], landmark_radius=0.3, mirte_radius = 0.2, camera_offset = Camera_offset, low=(0, 0), high=(2, 2), res=0.1):
         self.landmarks = landmarks
         self.mirte_radius = mirte_radius
         self.landmark_radius = landmark_radius

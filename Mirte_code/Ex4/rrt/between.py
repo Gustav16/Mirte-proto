@@ -1,3 +1,28 @@
+"""
+between_v2.py
+
+One camera map -> choose a passage -> plan -> execute -> stop.
+
+Changes from the first between.py:
+1. Uses local_map_v2.py, where ArUco positions are relative to MIRTE's center.
+2. Slightly higher translation speed: 0.18 m/s instead of 0.15 m/s.
+3. Uses MIRTE's holonomic/mecanum movement:
+       mirte.drive([forward_speed, sideways_speed], ...)
+   so MIRTE can move diagonally/sideways instead of relying on a tiny
+   timed rotation.
+4. Detects ALL visible ArUco boxes.
+5. With 3+ boxes, all boxes are treated as obstacles.
+6. If the direct path is blocked, it uses the existing RRT code to find
+   a collision-free route.
+7. The camera is used only ONCE. There is no re-detection while driving.
+
+Files expected in the same folder:
+    between_v2.py
+    local_map_v2.py
+    rrt.py
+    robot_models.py
+"""
+
 import math
 import os
 import sys
@@ -5,15 +30,11 @@ import time
 
 import numpy as np
 
-# Use a non-interactive backend on the robot.
 import matplotlib
 matplotlib.use("Agg")
 import matplotlib.pyplot as plt
+from matplotlib.patches import Circle
 
-
-# ---------------------------------------------------------------------------
-# MIRTE imports
-# ---------------------------------------------------------------------------
 
 sys.path.append(
     os.path.join(
@@ -23,288 +44,834 @@ sys.path.append(
 )
 
 from ku_mirte import KU_Mirte
-from local_map import LocalMap
+
+from local_map_v2 import LocalMap
+from robot_models import PointMassModel
+from rrt import RRT
 
 
 # ---------------------------------------------------------------------------
 # Settings
 # ---------------------------------------------------------------------------
 
-# If you know the two exact IDs, set e.g.:
-# TARGET_IDS = (1, 10)
+# If you know which two markers form the gate that MIRTE should pass through:
 #
-# None = choose the two visible markers with the largest horizontal separation.
+#     TARGET_IDS = (1, 10)
+#
+# If None:
+# - exactly 2 markers -> those two are used
+# - 3+ markers -> an automatic central/passable gap is selected
 TARGET_IDS = None
 
-LINEAR_SPEED = 0.15       # m/s
-ANGULAR_SPEED = 0.35      # rad/s
 
-# Calibration multipliers.
-# Keep at 1.0 initially.
-# If the robot systematically drives too short/far, adjust DISTANCE_SCALE.
-# If it systematically turns too little/much, adjust TURN_SCALE.
-DISTANCE_SCALE = 1.0
-TURN_SCALE = 1.0
+# Slight speed increase from 0.15 m/s.
+LINEAR_SPEED = 0.18
 
-# 0.0 means robot center aims directly for the calculated midpoint.
-# Set e.g. 0.10 to stop 10 cm before it.
-STOP_BEFORE_MIDPOINT = 0.0
+# Stop exactly at the calculated midpoint.
+# Set e.g. 0.05 to stop 5 cm before it.
+STOP_BEFORE_GOAL = 0.00
 
-# Simple safety limit.
-MAX_DRIVE_DISTANCE = 3.0
 
-PLOT_FILE = "between_plan.png"
+# RRT settings.
+PATH_RESOLUTION = 0.05
+EXPAND_DISTANCE = 0.25
+MAX_RRT_ITER = 2000
+GOAL_SAMPLE_RATE = 10
+
+# Extra clearance beyond LocalMap's robot + landmark radii.
+GATE_EXTRA_MARGIN = 0.05
+
+# Plot output.
+PLOT_FILE = "between_plan_v2.png"
 
 
 # ---------------------------------------------------------------------------
-# Helpers
+# Basic helpers
 # ---------------------------------------------------------------------------
 
 def stop_robot(mirte):
     try:
-        mirte.drive(0.0, 0.0, 0.1)
+        mirte.stop()
     except Exception:
-        pass
+        try:
+            mirte.drive([0.0, 0.0], 0.0, 0.1)
+        except Exception:
+            pass
 
 
 def landmark_dict(landmarks):
-    """
-    LocalMap gives:
-        [[np.array([x, z]), id], ...]
-
-    Convert to:
-        {id: np.array([x, z]), ...}
-
-    Coordinates:
-        x < 0 : left of robot
-        x > 0 : right of robot
-        z > 0 : in front of robot
-    """
     points = {}
 
     for position, marker_id in landmarks:
-        points[int(marker_id)] = np.asarray(position, dtype=float)
+        points[int(marker_id)] = np.asarray(
+            position,
+            dtype=float
+        )
 
     return points
 
 
 def print_landmarks(points):
-    print("Detected ArUco landmarks:")
+    print("Detected ArUco landmarks in ROBOT-CENTER frame:")
 
     for marker_id in sorted(points):
         x, z = points[marker_id]
+
         print(
             f"  ID {marker_id:3d}: "
-            f"x = {x:+.3f} m, z = {z:+.3f} m"
+            f"x = {x:+.3f} m, "
+            f"z = {z:+.3f} m"
         )
 
 
-def choose_marker_pair(points):
+def midpoint(a, b):
+    return (
+        np.asarray(a, dtype=float)
+        + np.asarray(b, dtype=float)
+    ) / 2.0
+
+
+def bearing_to(point):
     """
-    Use TARGET_IDS if specified.
+    Bearing from forward direction.
 
-    Otherwise choose the two markers with the largest separation
-    in the camera/robot x direction. This works well when the two
-    landmarks form the left and right side of a passage.
+    Map:
+        x positive = right
+        z positive = forward
     """
-    if TARGET_IDS is not None:
-        id_a, id_b = map(int, TARGET_IDS)
+    x, z = point
 
-        if id_a not in points or id_b not in points:
-            raise RuntimeError(
-                f"Could not see both target IDs {id_a} and {id_b}. "
-                "Reposition MIRTE and run the program again."
-            )
+    return math.atan2(
+        float(x),
+        float(z)
+    )
 
-        return id_a, id_b
 
+# ---------------------------------------------------------------------------
+# Gate selection
+# ---------------------------------------------------------------------------
+
+def gate_is_wide_enough(
+    local_map,
+    p_a,
+    p_b
+):
+    center_distance = float(
+        np.linalg.norm(p_a - p_b)
+    )
+
+    required_center_distance = (
+        2.0
+        * (
+            local_map.landmark_radius
+            + local_map.mirte_radius
+        )
+        + GATE_EXTRA_MARGIN
+    )
+
+    return (
+        center_distance
+        >= required_center_distance
+    )
+
+
+def automatic_gate_candidates(points):
+    """
+    For 3+ markers, consider only neighbours in viewing angle.
+
+    This avoids choosing e.g. the far-left and far-right box as one
+    giant "gate" while another box is actually between them.
+    """
+    ids = list(points.keys())
+
+    sorted_ids = sorted(
+        ids,
+        key=lambda marker_id: bearing_to(
+            points[marker_id]
+        )
+    )
+
+    return [
+        (
+            sorted_ids[i],
+            sorted_ids[i + 1]
+        )
+        for i in range(
+            len(sorted_ids) - 1
+        )
+    ]
+
+
+def choose_gate(
+    points,
+    local_map
+):
     ids = list(points.keys())
 
     if len(ids) < 2:
         raise RuntimeError(
-            "Fewer than two ArUco markers were detected. "
-            "Reposition MIRTE so both markers are visible and run again."
+            "At least two ArUco landmarks are required."
         )
 
-    best_pair = None
-    best_separation = -1.0
+    # Explicit gate.
+    if TARGET_IDS is not None:
+        id_a, id_b = map(
+            int,
+            TARGET_IDS
+        )
 
-    for i in range(len(ids)):
-        for j in range(i + 1, len(ids)):
-            id_a = ids[i]
-            id_b = ids[j]
+        if (
+            id_a not in points
+            or id_b not in points
+        ):
+            raise RuntimeError(
+                f"Could not see both requested target IDs "
+                f"{id_a} and {id_b}."
+            )
 
-            separation = abs(points[id_a][0] - points[id_b][0])
+        p_a = points[id_a]
+        p_b = points[id_b]
+        goal = midpoint(p_a, p_b)
 
-            if separation > best_separation:
-                best_separation = separation
-                best_pair = (id_a, id_b)
+        if not gate_is_wide_enough(
+            local_map,
+            p_a,
+            p_b
+        ):
+            raise RuntimeError(
+                f"Gate between ID {id_a} and ID {id_b} "
+                "is too narrow according to the current "
+                "robot/landmark radii."
+            )
 
-    return best_pair
+        if local_map.in_collision(goal):
+            raise RuntimeError(
+                "The midpoint of the requested gate is "
+                "inside the collision region."
+            )
+
+        return (
+            id_a,
+            id_b,
+            goal
+        )
+
+    # Exactly two -> obvious gate.
+    if len(ids) == 2:
+        id_a, id_b = ids
+
+        p_a = points[id_a]
+        p_b = points[id_b]
+        goal = midpoint(p_a, p_b)
+
+        if not gate_is_wide_enough(
+            local_map,
+            p_a,
+            p_b
+        ):
+            raise RuntimeError(
+                "The two detected landmarks do not leave "
+                "enough clearance for MIRTE."
+            )
+
+        return (
+            id_a,
+            id_b,
+            goal
+        )
+
+    # 3+ landmarks -> only adjacent visual neighbours are candidate gates.
+    candidates = []
+
+    for id_a, id_b in automatic_gate_candidates(
+        points
+    ):
+        p_a = points[id_a]
+        p_b = points[id_b]
+
+        if not gate_is_wide_enough(
+            local_map,
+            p_a,
+            p_b
+        ):
+            continue
+
+        goal = midpoint(
+            p_a,
+            p_b
+        )
+
+        # Must be in front of MIRTE.
+        if goal[1] <= 0.0:
+            continue
+
+        # Goal itself must be safe.
+        if local_map.in_collision(goal):
+            continue
+
+        distance = float(
+            np.linalg.norm(goal)
+        )
+
+        angle = abs(
+            bearing_to(goal)
+        )
+
+        # Prefer a gate near the forward direction.
+        # Distance is a smaller secondary preference.
+        score = (
+            3.0 * angle
+            + 0.15 * distance
+        )
+
+        candidates.append(
+            (
+                score,
+                id_a,
+                id_b,
+                goal
+            )
+        )
+
+    if not candidates:
+        raise RuntimeError(
+            "No automatically passable gap was found. "
+            "Set TARGET_IDS explicitly or change the layout."
+        )
+
+    candidates.sort(
+        key=lambda item: item[0]
+    )
+
+    _, id_a, id_b, goal = candidates[0]
+
+    return (
+        id_a,
+        id_b,
+        goal
+    )
 
 
-def calculate_plan(points, marker_pair):
-    id_a, id_b = marker_pair
+# ---------------------------------------------------------------------------
+# Collision checking / RRT
+# ---------------------------------------------------------------------------
 
-    p_a = points[id_a]
-    p_b = points[id_b]
+def segment_is_free(
+    local_map,
+    p0,
+    p1,
+    step=0.025
+):
+    p0 = np.asarray(
+        p0,
+        dtype=float
+    )
 
-    midpoint = (p_a + p_b) / 2.0
+    p1 = np.asarray(
+        p1,
+        dtype=float
+    )
 
-    x = float(midpoint[0])
-    z = float(midpoint[1])
+    distance = float(
+        np.linalg.norm(
+            p1 - p0
+        )
+    )
 
-    # Euclidean distance from robot origin (0, 0) to midpoint.
-    distance = math.hypot(x, z)
+    if distance <= 1e-9:
+        return not bool(
+            local_map.in_collision(p0)
+        )
 
-    # Camera/LocalMap x is positive to the right.
-    # Positive robot yaw is left/counter-clockwise, hence the minus sign.
-    turn_angle = -math.atan2(x, z)
+    n = max(
+        2,
+        int(
+            math.ceil(
+                distance / step
+            )
+        )
+        + 1
+    )
 
-    gap_width = float(np.linalg.norm(p_a - p_b))
+    for t in np.linspace(
+        0.0,
+        1.0,
+        n
+    ):
+        p = (
+            (1.0 - t) * p0
+            + t * p1
+        )
 
-    return midpoint, distance, turn_angle, gap_width
+        if local_map.in_collision(p):
+            return False
+
+    return True
 
 
-def save_plan_plot(points, marker_pair, midpoint, filename=PLOT_FILE):
+def simplify_path(
+    path,
+    local_map
+):
     """
-    Save a plot BEFORE moving.
+    Greedy line-of-sight path simplification.
 
-    Robot start = (0, 0)
-    Landmarks = their measured [x, z] positions
-    Goal = midpoint between the selected landmarks
+    This reduces the number of physical MIRTE movement commands,
+    which should reduce accumulated open-loop motion error.
     """
-    id_a, id_b = marker_pair
+    if len(path) <= 2:
+        return path
 
-    fig, ax = plt.subplots(figsize=(7, 8))
+    simplified = [
+        np.asarray(
+            path[0],
+            dtype=float
+        )
+    ]
 
-    # Plot all detected landmarks.
+    i = 0
+
+    while i < len(path) - 1:
+        chosen = i + 1
+
+        for j in range(
+            len(path) - 1,
+            i,
+            -1
+        ):
+            if segment_is_free(
+                local_map,
+                path[i],
+                path[j]
+            ):
+                chosen = j
+                break
+
+        simplified.append(
+            np.asarray(
+                path[chosen],
+                dtype=float
+            )
+        )
+
+        i = chosen
+
+    return simplified
+
+
+def create_path(
+    local_map,
+    goal
+):
+    start = np.array([
+        0.0,
+        0.0
+    ])
+
+    goal = np.asarray(
+        goal,
+        dtype=float
+    )
+
+    # First try the simple direct route.
+    if segment_is_free(
+        local_map,
+        start,
+        goal
+    ):
+        print(
+            "Direct path to selected midpoint is collision-free."
+        )
+
+        return [
+            start,
+            goal
+        ]
+
+    print(
+        "Direct route is blocked by another box."
+    )
+
+    print(
+        "Running RRT using all detected boxes as obstacles..."
+    )
+
+    robot_model = PointMassModel(
+        ctrl_range=[
+            -PATH_RESOLUTION,
+            PATH_RESOLUTION
+        ]
+    )
+
+    planner = RRT(
+        start=start,
+        goal=goal,
+        robot_model=robot_model,
+        map=local_map,
+        expand_dis=EXPAND_DISTANCE,
+        path_resolution=PATH_RESOLUTION,
+        goal_sample_rate=GOAL_SAMPLE_RATE,
+        max_iter=MAX_RRT_ITER
+    )
+
+    raw_path = planner.planning(
+        animation=False
+    )
+
+    if raw_path is None:
+        raise RuntimeError(
+            "RRT could not find a collision-free route."
+        )
+
+    # rrt.py returns goal -> ... -> start.
+    path = [
+        np.asarray(
+            p,
+            dtype=float
+        )
+        for p in reversed(raw_path)
+    ]
+
+    path = simplify_path(
+        path,
+        local_map
+    )
+
+    print(
+        f"RRT path simplified to "
+        f"{len(path)} waypoints."
+    )
+
+    return path
+
+
+# ---------------------------------------------------------------------------
+# Physical movement
+# ---------------------------------------------------------------------------
+
+def execute_segment(
+    mirte,
+    p0,
+    p1
+):
+    """
+    Execute a map-frame translation WITHOUT rotating MIRTE.
+
+    Map coordinates:
+        dx > 0 : target lies to robot's right
+        dz > 0 : target lies forward
+
+    KU_Mirte drive([x, y], ...):
+        x > 0 : forward
+        y > 0 : left
+
+    Therefore:
+        forward command = +dz
+        sideways command = -dx
+    """
+    p0 = np.asarray(
+        p0,
+        dtype=float
+    )
+
+    p1 = np.asarray(
+        p1,
+        dtype=float
+    )
+
+    dx = float(
+        p1[0] - p0[0]
+    )
+
+    dz = float(
+        p1[1] - p0[1]
+    )
+
+    distance = math.hypot(
+        dx,
+        dz
+    )
+
+    if distance <= 1e-6:
+        return
+
+    usable_distance = distance
+
+    # Only shorten the final segment.
+    # Caller handles whether this is final by modifying p1 if needed.
+    direction_forward = dz / distance
+    direction_left = -dx / distance
+
+    v_forward = (
+        LINEAR_SPEED
+        * direction_forward
+    )
+
+    v_left = (
+        LINEAR_SPEED
+        * direction_left
+    )
+
+    duration = (
+        usable_distance
+        / LINEAR_SPEED
+    )
+
+    print(
+        "Moving segment:"
+    )
+
+    print(
+        f"  dx(right) = {dx:+.3f} m"
+    )
+
+    print(
+        f"  dz(forward) = {dz:+.3f} m"
+    )
+
+    print(
+        f"  forward speed = {v_forward:+.3f} m/s"
+    )
+
+    print(
+        f"  sideways(left) speed = {v_left:+.3f} m/s"
+    )
+
+    print(
+        f"  duration = {duration:.2f} s"
+    )
+
+    mirte.drive(
+        [
+            v_forward,
+            v_left
+        ],
+        0.0,
+        duration
+    )
+
+
+def shorten_final_goal(
+    path,
+    stop_before
+):
+    if (
+        stop_before <= 0.0
+        or len(path) < 2
+    ):
+        return path
+
+    new_path = [
+        np.asarray(
+            p,
+            dtype=float
+        ).copy()
+        for p in path
+    ]
+
+    p0 = new_path[-2]
+    p1 = new_path[-1]
+
+    delta = p1 - p0
+
+    distance = float(
+        np.linalg.norm(delta)
+    )
+
+    if distance <= stop_before:
+        return new_path[:-1]
+
+    new_path[-1] = (
+        p1
+        - (
+            delta / distance
+        )
+        * stop_before
+    )
+
+    return new_path
+
+
+def execute_path(
+    mirte,
+    path
+):
+    for i in range(
+        len(path) - 1
+    ):
+        print()
+        print(
+            f"Executing path segment "
+            f"{i + 1}/{len(path) - 1}"
+        )
+
+        execute_segment(
+            mirte,
+            path[i],
+            path[i + 1]
+        )
+
+        time.sleep(0.20)
+
+    stop_robot(mirte)
+
+
+# ---------------------------------------------------------------------------
+# Plotting
+# ---------------------------------------------------------------------------
+
+def save_plan_plot(
+    local_map,
+    points,
+    gate_ids,
+    goal,
+    path
+):
+    fig, ax = plt.subplots(
+        figsize=(8, 8)
+    )
+
+    clearance = (
+        local_map.landmark_radius
+        + local_map.mirte_radius
+    )
+
     for marker_id, point in points.items():
         x, z = point
 
-        if marker_id in marker_pair:
-            marker = "s"
-            size = 100
-        else:
-            marker = "o"
-            size = 60
+        ax.scatter(
+            x,
+            z,
+            marker="s"
+        )
 
-        ax.scatter(x, z, marker=marker, s=size)
         ax.text(
             x + 0.025,
             z + 0.025,
-            f"ID {marker_id}",
-            fontsize=10
+            f"ID {marker_id}"
         )
 
-    # Robot start.
-    ax.scatter(0.0, 0.0, marker="^", s=120)
-    ax.text(0.025, 0.025, "MIRTE start", fontsize=10)
+        ax.add_patch(
+            Circle(
+                (x, z),
+                clearance,
+                fill=False
+            )
+        )
 
-    # Midpoint / target.
-    ax.scatter(midpoint[0], midpoint[1], marker="x", s=140)
-    ax.text(
-        midpoint[0] + 0.025,
-        midpoint[1] + 0.025,
-        "Target midpoint",
-        fontsize=10
+    # MIRTE start.
+    ax.scatter(
+        0.0,
+        0.0,
+        marker="^"
     )
 
-    # Line between selected landmarks.
+    ax.text(
+        0.025,
+        0.025,
+        "MIRTE start"
+    )
+
+    # Selected gate.
+    id_a, id_b = gate_ids
+
     p_a = points[id_a]
     p_b = points[id_b]
+
     ax.plot(
         [p_a[0], p_b[0]],
         [p_a[1], p_b[1]],
         linestyle="--"
     )
 
-    # Planned robot path.
+    # Goal.
+    ax.scatter(
+        goal[0],
+        goal[1],
+        marker="x",
+        s=100
+    )
+
+    ax.text(
+        goal[0] + 0.025,
+        goal[1] + 0.025,
+        "Selected midpoint"
+    )
+
+    # Planned path.
+    xs = [
+        p[0]
+        for p in path
+    ]
+
+    zs = [
+        p[1]
+        for p in path
+    ]
+
     ax.plot(
-        [0.0, midpoint[0]],
-        [0.0, midpoint[1]],
-        linestyle="-"
+        xs,
+        zs,
+        linewidth=2
     )
 
-    ax.set_xlabel("x [m]  (left / right)")
-    ax.set_ylabel("z [m]  (forward)")
+    ax.set_xlabel(
+        "x [m] (right positive)"
+    )
+
+    ax.set_ylabel(
+        "z [m] (forward positive)"
+    )
+
     ax.set_title(
-        f"One-shot plan between ArUco ID {id_a} and ID {id_b}"
+        f"Plan through ArUco ID {id_a} and ID {id_b}"
     )
+
     ax.grid(True)
-    ax.axis("equal")
 
-    # Make sure origin is visible with some margin.
-    all_x = [0.0, midpoint[0]] + [p[0] for p in points.values()]
-    all_z = [0.0, midpoint[1]] + [p[1] for p in points.values()]
+    ax.set_aspect(
+        "equal",
+        adjustable="box"
+    )
 
-    x_margin = 0.25
-    z_margin = 0.25
+    all_x = (
+        [0.0, goal[0]]
+        + [
+            p[0]
+            for p in points.values()
+        ]
+        + xs
+    )
 
-    ax.set_xlim(min(all_x) - x_margin, max(all_x) + x_margin)
-    ax.set_ylim(min(all_z) - z_margin, max(all_z) + z_margin)
+    all_z = (
+        [0.0, goal[1]]
+        + [
+            p[1]
+            for p in points.values()
+        ]
+        + zs
+    )
+
+    margin = 0.60
+
+    ax.set_xlim(
+        min(all_x) - margin,
+        max(all_x) + margin
+    )
+
+    ax.set_ylim(
+        min(0.0, min(all_z)) - 0.10,
+        max(all_z) + margin
+    )
 
     fig.tight_layout()
-    fig.savefig(filename, dpi=160)
+
+    fig.savefig(
+        PLOT_FILE,
+        dpi=180
+    )
+
     plt.close(fig)
-
-
-def rotate_robot(mirte, angle):
-    corrected_angle = angle * TURN_SCALE
-
-    if abs(corrected_angle) < math.radians(0.5):
-        print("Rotation is negligible. Skipping turn.")
-        return
-
-    angular_velocity = math.copysign(
-        ANGULAR_SPEED,
-        corrected_angle
-    )
-
-    duration = abs(corrected_angle) / ANGULAR_SPEED
-
-    print(
-        f"Rotating {math.degrees(corrected_angle):+.2f} degrees "
-        f"for {duration:.2f} s"
-    )
-
-    mirte.drive(
-        0.0,
-        angular_velocity,
-        duration
-    )
-
-
-def drive_to_target(mirte, distance):
-    drive_distance = max(
-        0.0,
-        distance - STOP_BEFORE_MIDPOINT
-    )
-
-    drive_distance *= DISTANCE_SCALE
-
-    if drive_distance <= 0.0:
-        print("No forward movement is needed.")
-        return
-
-    if drive_distance > MAX_DRIVE_DISTANCE:
-        raise RuntimeError(
-            f"Calculated drive distance is {drive_distance:.2f} m, "
-            f"which exceeds safety limit {MAX_DRIVE_DISTANCE:.2f} m."
-        )
-
-    duration = drive_distance / LINEAR_SPEED
-
-    print(
-        f"Driving {drive_distance:.3f} m forward "
-        f"for {duration:.2f} s"
-    )
-
-    mirte.drive(
-        LINEAR_SPEED,
-        0.0,
-        duration
-    )
 
 
 # ---------------------------------------------------------------------------
@@ -315,110 +882,152 @@ def main():
     mirte = None
 
     try:
-        print("Starting MIRTE...")
+        print(
+            "Starting MIRTE..."
+        )
+
         mirte = KU_Mirte()
 
-        # Let camera / ROS initialize.
         time.sleep(1.0)
 
         print()
-        print("Taking ONE ArUco map...")
+        print(
+            "Taking ONE ArUco map..."
+        )
 
         local_map = LocalMap()
 
-        # IMPORTANT:
-        # This is the only camera/map update in the program.
+        # The only camera observation.
         local_map.update(mirte)
 
-        points = landmark_dict(local_map.landmarks)
+        points = landmark_dict(
+            local_map.landmarks
+        )
 
-        if not points:
+        if len(points) < 2:
             raise RuntimeError(
-                "No ArUco markers were detected. "
-                "Reposition MIRTE and run the program again."
+                "Fewer than two ArUco landmarks detected."
             )
 
         print_landmarks(points)
 
-        marker_pair = choose_marker_pair(points)
-        id_a, id_b = marker_pair
-
-        print()
-        print(f"Selected target markers: ID {id_a} and ID {id_b}")
-
-        midpoint, distance, turn_angle, gap_width = calculate_plan(
+        id_a, id_b, goal = choose_gate(
             points,
-            marker_pair
+            local_map
+        )
+
+        p_a = points[id_a]
+        p_b = points[id_b]
+
+        gap_width = float(
+            np.linalg.norm(
+                p_a - p_b
+            )
+        )
+
+        goal_distance = float(
+            np.linalg.norm(goal)
+        )
+
+        goal_angle = math.degrees(
+            bearing_to(goal)
         )
 
         print()
-        print("Calculated one-shot plan:")
-        print(f"  Distance between markers : {gap_width:.3f} m")
         print(
-            f"  Midpoint                 : "
-            f"x={midpoint[0]:+.3f} m, z={midpoint[1]:+.3f} m"
-        )
-        print(f"  Distance to midpoint     : {distance:.3f} m")
-        print(
-            f"  Required turn            : "
-            f"{math.degrees(turn_angle):+.2f} degrees"
+            f"Selected gate: "
+            f"ID {id_a} <-> ID {id_b}"
         )
 
-        if midpoint[1] <= 0.0:
-            raise RuntimeError(
-                "The calculated midpoint is not in front of MIRTE. "
-                "For this test, place MIRTE in front of the two markers."
-            )
+        print(
+            f"Center distance between boxes: "
+            f"{gap_width:.3f} m"
+        )
+
+        print(
+            f"Goal midpoint in ROBOT-CENTER frame: "
+            f"x={goal[0]:+.3f} m, "
+            f"z={goal[1]:+.3f} m"
+        )
+
+        print(
+            f"Straight-line distance from robot center: "
+            f"{goal_distance:.3f} m"
+        )
+
+        print(
+            f"Goal bearing: "
+            f"{goal_angle:+.2f} degrees "
+            f"(positive = right)"
+        )
+
+        path = create_path(
+            local_map,
+            goal
+        )
+
+        path = shorten_final_goal(
+            path,
+            STOP_BEFORE_GOAL
+        )
 
         save_plan_plot(
+            local_map,
             points,
-            marker_pair,
-            midpoint
+            (id_a, id_b),
+            goal,
+            path
         )
 
         print()
-        print(f"Saved plan plot to: {os.path.abspath(PLOT_FILE)}")
+        print(
+            f"Saved plan plot to: "
+            f"{os.path.abspath(PLOT_FILE)}"
+        )
 
         print()
-        print("Camera measurements are now finished.")
-        print("MIRTE will execute this fixed estimate without looking again.")
+        print(
+            "Camera measurements are now finished."
+        )
 
-        # Step 1: rotate once to face the originally calculated midpoint.
-        rotate_robot(
+        print(
+            "MIRTE will execute the fixed plan "
+            "without looking again."
+        )
+
+        execute_path(
             mirte,
-            turn_angle
+            path
         )
-
-        time.sleep(0.25)
-
-        # Step 2: drive the originally calculated distance.
-        drive_to_target(
-            mirte,
-            distance
-        )
-
-        # Explicit stop.
-        stop_robot(mirte)
 
         print()
-        print("Finished.")
-        print("MIRTE has stopped after executing the original one-shot plan.")
+        print(
+            "Finished. MIRTE stopped."
+        )
 
     except KeyboardInterrupt:
         print()
-        print("Ctrl+C received. Stopping MIRTE.")
+        print(
+            "Ctrl+C received. Stopping MIRTE."
+        )
 
     except Exception as exc:
         print()
-        print("ERROR:")
+        print(
+            "ERROR:"
+        )
+
         print(exc)
+
         raise
 
     finally:
         if mirte is not None:
             stop_robot(mirte)
 
-        print("Robot stopped.")
+        print(
+            "Robot stopped."
+        )
 
 
 if __name__ == "__main__":

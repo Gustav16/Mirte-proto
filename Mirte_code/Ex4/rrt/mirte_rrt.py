@@ -295,6 +295,7 @@ def main():
         else:
             print("found path!!")
             #execute path
+            print(path)
             Execute_path(path, mirte)
 
             # Draw final path

@@ -38,7 +38,7 @@ intrinsic_matrix = np.array([
 ], dtype=np.float32)
 arucoDict = cv2.aruco.getPredefinedDictionary(cv2.aruco.DICT_6X6_250)
 Camera_offset = = np.array([
-            -0,   # x: 0 cm left
+            0,   # x: 0 cm left
             0.10   # z: 8 cm forward
         ])
 
@@ -56,9 +56,9 @@ class LocalMap:
     Local map class
     """
     #landmark co
-    def __init__(self, landmarks = [], landmark_radius=0.5, mirte_radius = 0.3, camera_offset = Camera_offset):
+    def __init__(self, landmarks = [], landmark_radius=0.4, mirte_radius = 0.2, camera_offset = Camera_offset):
         self.landmarks = landmarks
-        self.landmark_radius = landmark_radius
+        self.mirte_radius = mirte_radius
         self.landmark_radius = landmark_radius
         self.camera_offset = camera_offset
 
@@ -70,11 +70,11 @@ class LocalMap:
         ###fast linear search as we dont expect many landmarks.
         #however data structures can be used for larger amounts of landmarks eg. kd-tres
         for landmark, landmark_id in self.landmarks:
-            if (np.sum((pos - landmark)**2) <= self.landmark_radius**2):
+            if (np.sum((pos - landmark)**2) <=( self.landmark_radius + self.mirte_radius)**2):
                 return 1
         return 0
 
-    def get_map_from_mirte(self, mirte)
+    def get_map_from_mirte(self, mirte):
         "function for gettig local map from mirte camera"
         landmark_map = []
         img = mirte.get_image_compressed()

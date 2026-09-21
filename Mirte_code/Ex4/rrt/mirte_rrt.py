@@ -193,28 +193,73 @@ sys.path.append(
 from ku_mirte import KU_Mirte
 import grid_occ, mirte_model, local_map
 
+
+def Execute_path(path, mirte):
+    current_pose = np.array([0.0, 0.0, 0.0])
+
+    linear_speed = 0.3   # m/s
+    angular_speed = 0.5   # rad/s
+
+    for point in path[1:]:
+        dx = point[0] - current_pose[0]
+        dy = point[1] - current_pose[1]
+
+        distance = np.linalg.norm([dx, dy])
+
+        if distance <= 1e-6:
+            continue
+
+        # Direction towards next point
+        target_theta = -np.arctan2(dy, dx)
+
+        # Required rotation
+        dtheta = target_theta - current_pose[2]
+        dtheta = np.arctan2(np.sin(dtheta), np.cos(dtheta))
+
+        # Rotate at fixed angular speed
+        if abs(dtheta) > 1e-6:
+            mirte.drive(
+                0.0,
+                np.sign(dtheta) * angular_speed,
+                abs(dtheta) / angular_speed
+            )
+
+        # Drive at fixed linear speed
+        mirte.drive(
+            linear_speed,
+            0.0,
+            distance / linear_speed
+        )
+
+        # Update estimated pose
+        current_pose[0] = point[0]
+        current_pose[1] = point[1]
+        current_pose[2] = target_theta
+
+
 def main():
+    path_res = 0.1 #10 cm
     mirte = mirte = KU_Mirte()
     time.sleep(1)  # wait for camera to setup
-    map = LocalMap()
+    map = local_map.LocalMap()
     map.update(mirte)
+    robot = mirte_model.MirteModel(ctrl_range=[-path_res, path_res])
 
-    robot = robot_models.PointMassModel(ctrl_range=[-path_res, path_res])   #
-
+    #robot = robot_models.PointMassModel(ctrl_range=[-path_res, path_res])   #
     rrt = RRT(
         start=[0, 0],
         goal=[0, 1.9],
         robot_model=robot,
         map=map,
-        expand_dis=0.2,
-        path_resolution=path_res,
+        expand_dis=0.5, #0.5 meters
+        path_resolution=path_res, #10 cm
         )
     
-    show_animation = True
+    show_animation = False
     metadata = dict(title="RRT Test")
     #writer = FFMpegWriter(fps=15, metadata=metadata)
     writer = None
-    fig = plt.figure()
+    #fig = plt.figure()
     if writer is not None:
         with writer.saving(fig, "rrt_test.mp4", 100):
             path = rrt.planning(animation=show_animation, writer=writer)
@@ -240,6 +285,8 @@ def main():
             print("Cannot find path")
         else:
             print("found path!!")
+            #execute path
+
             # Draw final path
             if show_animation:
                 rrt.draw_graph()

@@ -28,59 +28,68 @@ from robot_models import RobotModel
 class MirteModel(RobotModel):
 
     def forward_dyn(self, x, u, T):
-        path = [x]
+    path = []
+
+    x_current = x.copy()
+
+    for i in range(T):
+        distance, dtheta = u[i]
+
+        x_current[2] += dtheta
+        x_current[0] += distance * np.cos(x_current[2])
+        x_current[1] += distance * np.sin(x_current[2])
+
+        path.append(x_current[:2].copy())
+
+    return path
+
+    class MirteModel(RobotModel):
+
+    def forward_dyn(self, x, u, T):
+        path = [x.copy()]
+
+        theta = 0.0  # orientation used internally
 
         for i in range(T):
             distance, dtheta = u[i]
 
-            x_new = path[-1].copy()
+            theta += dtheta
 
-            x_new[2] += dtheta
-            x_new[0] += distance * np.cos(x_new[2])
-            x_new[1] += distance * np.sin(x_new[2])
+            x_new = path[-1].copy()
+            x_new[0] += distance * np.cos(theta)
+            x_new[1] += distance * np.sin(theta)
 
             path.append(x_new)
-            
+
         return path[1:]
 
     def inverse_dyn(self, x, x_goal, T):
-        x_current = x.copy()
-        u = []
+        dx = x_goal[0] - x[0]
+        dy = x_goal[1] - x[1]
 
-        dx = x_goal[0] - x_current[0]
-        dy = x_goal[1] - x_current[1]
+        distance = np.linalg.norm([dx, dy])
 
-        dist = np.linalg.norm([dx, dy])
+        if distance == 0:
+            return [x.copy()]
 
-        if dist == 0:
-            return []
+        # Direction towards target
+        theta = -np.arctan2(dy, dx)
 
-        target_theta = -np.arctan2(dy, dx)
-
-        dtheta = target_theta - x_current[2]
-        dtheta = np.arctan2(np.sin(dtheta), np.cos(dtheta))
-
-        # Only turn if necessary
+        # Rotate first, then drive
+        # Only rotate if necessary
         if abs(dtheta) > 1e-6:
             u.append(np.array([0.0, dtheta]))
-            x_current[2] += dtheta
 
-        # Use up to T steps to drive towards the goal
-        for i in range(T - len(u)):
-            dx = x_goal[0] - x_current[0]
-            dy = x_goal[1] - x_current[1]
-
-            dist = np.linalg.norm([dx, dy])
-
-            if dist <= 1e-6:
-                break
-
-            step = min(self.ctrl_range[1], dist)
+        # Drive towards the target
+        for _ in range(T - len(u)):
+            step = min(self.ctrl_range[1], distance)
 
             u.append(np.array([step, 0.0]))
 
-            x_current[0] += step * np.cos(x_current[2])
-            x_current[1] += step * np.sin(x_current[2])
+            distance -= step
+
+            if distance <= 1e-6:
+                break
 
         return self.forward_dyn(x, u, len(u))
 

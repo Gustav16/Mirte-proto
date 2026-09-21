@@ -303,6 +303,7 @@ def main():
             plot_local_map(map.landmarks)
             plot_path(path, start=path[-1], goal=path[0])
             plt.savefig(PNG_PATH, dpi=200, bbox_inches="tight")
+            print(f"Saved plot to: {PNG_PATH}")
             plt.pause(0.01)  # Need for Mac
 
             #execute path

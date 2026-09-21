@@ -29,25 +29,26 @@ This provides an extendable interface to make the simulation of robot motion ind
 The most basic RRT implementation just needs PointMassModel
 """
 
-import numpy as np
-from robot_models import RobotModel
-
-
 class MirteModel(RobotModel):
+
+    def __init__(self, ctrl_range):
+        super().__init__(ctrl_range)
+        self.theta = 0.0
 
     def forward_dyn(self, x, u, T):
         path = []
-        x_current = x.copy()
+
+        x_current = np.array(x, dtype=float)
 
         for i in range(T):
             distance, dtheta = u[i]
 
-            x_current[2] += dtheta
-            x_current[0] += distance * np.cos(x_current[2])
-            x_current[1] += distance * np.sin(x_current[2])
+            self.theta += dtheta
 
-            # Only return x, y points
-            path.append(x_current[:2].copy())
+            x_current[0] += distance * np.cos(self.theta)
+            x_current[1] += distance * np.sin(self.theta)
+
+            path.append(x_current.copy())
 
         return path
 
@@ -58,13 +59,11 @@ class MirteModel(RobotModel):
         distance = np.linalg.norm([dx, dy])
 
         if distance <= 1e-6:
-            return [x[:2].copy()]
+            return [x.copy()]
 
-        # Direction towards goal
-        target_theta = -np.arctan2(dy, dx)
+        target_theta = np.arctan2(dy, dx)
 
-        # Rotation needed from current orientation
-        dtheta = target_theta - x[2]
+        dtheta = target_theta - self.theta
         dtheta = np.arctan2(
             np.sin(dtheta),
             np.cos(dtheta)
@@ -72,11 +71,11 @@ class MirteModel(RobotModel):
 
         u = []
 
-        # Only rotate if necessary
+        # Rotate only if necessary
         if abs(dtheta) > 1e-6:
             u.append(np.array([0.0, dtheta]))
 
-        # Drive towards goal
+        # Drive towards target
         for _ in range(T - len(u)):
             step = min(self.ctrl_range[1], distance)
 

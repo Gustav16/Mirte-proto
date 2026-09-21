@@ -1,34 +1,14 @@
-"""
-drive_between_aruco.py
-
-Finder to ArUco-landmarks med koden fra local_map.py og kører MIRTE
-mod midtpunktet mellem dem.
-
-Filen er lavet til at ligge i samme mappe som:
-    local_map.py
-
-Den bruger local_map.LocalMap som "library", så vi genbruger jeres
-kamera-kalibrering, ArUco-dictionary, markerstørrelse og camera offset.
-
-Strategi:
-1. Find mindst to ArUco-markers.
-2. Vælg et par og lås deres IDs.
-3. Beregn midtpunktet mellem de to landmarks i robot-koordinater.
-4. Drej mod midtpunktet.
-5. Kør et lille stykke frem.
-6. Tag et nyt billede og korriger igen.
-7. Stop når robotten er tæt på midtpunktet.
-
-Det er bevidst lavet som små bevægelser, så motorfejl ikke akkumulerer
-lige så meget som ved én stor åben-loop bevægelse.
-"""
-
 import math
 import os
 import sys
 import time
 
 import numpy as np
+
+# Use a non-interactive backend on the robot.
+import matplotlib
+matplotlib.use("Agg")
+import matplotlib.pyplot as plt
 
 
 # ---------------------------------------------------------------------------
@@ -47,45 +27,40 @@ from local_map import LocalMap
 
 
 # ---------------------------------------------------------------------------
-# Indstillinger
+# Settings
 # ---------------------------------------------------------------------------
 
-# Hvis I KENDER de to ArUco IDs, så skriv dem her, fx:
-# TARGET_IDS = (4, 7)
+# If you know the two exact IDs, set e.g.:
+# TARGET_IDS = (1, 10)
 #
-# Hvis None vælges automatisk de to synlige markers med størst
-# vandret afstand mellem sig. Derefter låses de IDs resten af kørslen.
+# None = choose the two visible markers with the largest horizontal separation.
 TARGET_IDS = None
 
-# Hvor tæt robot-centret skal være på midtpunktet før vi stopper.
-STOP_DISTANCE = 0.12       # meter
+LINEAR_SPEED = 0.15       # m/s
+ANGULAR_SPEED = 0.35      # rad/s
 
-# Små skridt gør kørslen mere robust over for motorfejl.
-MAX_FORWARD_STEP = 0.12    # meter pr. iteration
+# Calibration multipliers.
+# Keep at 1.0 initially.
+# If the robot systematically drives too short/far, adjust DISTANCE_SCALE.
+# If it systematically turns too little/much, adjust TURN_SCALE.
+DISTANCE_SCALE = 1.0
+TURN_SCALE = 1.0
 
-LINEAR_SPEED = 0.15        # m/s
-ANGULAR_SPEED = 0.35       # rad/s
+# 0.0 means robot center aims directly for the calculated midpoint.
+# Set e.g. 0.10 to stop 10 cm before it.
+STOP_BEFORE_MIDPOINT = 0.0
 
-# Hvis vinkelfejlen er større end dette, drejer vi først uden at køre frem.
-ANGLE_TOLERANCE = math.radians(5.0)
+# Simple safety limit.
+MAX_DRIVE_DISTANCE = 3.0
 
-# Søgning når begge markers ikke kan ses.
-SEARCH_TURN_ANGLE = math.radians(10.0)
-SEARCH_PAUSE = 0.20
-
-# Maksimum antal loop-iterationer som ekstra sikkerhed.
-MAX_ITERATIONS = 100
-
-# Pause efter en fysisk bevægelse før næste kameramåling.
-CAMERA_SETTLE_TIME = 0.25
+PLOT_FILE = "between_plan.png"
 
 
 # ---------------------------------------------------------------------------
-# Hjælpefunktioner
+# Helpers
 # ---------------------------------------------------------------------------
 
 def stop_robot(mirte):
-    """Forsøg at sende en stopkommando til robotten."""
     try:
         mirte.drive(0.0, 0.0, 0.1)
     except Exception:
@@ -94,32 +69,28 @@ def stop_robot(mirte):
 
 def landmark_dict(landmarks):
     """
-    Konverterer LocalMap-formatet:
+    LocalMap gives:
         [[np.array([x, z]), id], ...]
-    til:
+
+    Convert to:
         {id: np.array([x, z]), ...}
 
-    x = sideværts position set fra robotten
-        negativ = venstre
-        positiv = højre
-
-    z = fremad fra robotten
-        positiv = foran robotten
+    Coordinates:
+        x < 0 : left of robot
+        x > 0 : right of robot
+        z > 0 : in front of robot
     """
-    result = {}
+    points = {}
 
     for position, marker_id in landmarks:
-        result[int(marker_id)] = np.asarray(position, dtype=float)
+        points[int(marker_id)] = np.asarray(position, dtype=float)
 
-    return result
+    return points
 
 
 def print_landmarks(points):
-    if not points:
-        print("Ingen ArUco markers fundet.")
-        return
+    print("Detected ArUco landmarks:")
 
-    print("Synlige ArUco markers:")
     for marker_id in sorted(points):
         x, z = points[marker_id]
         print(
@@ -130,91 +101,171 @@ def print_landmarks(points):
 
 def choose_marker_pair(points):
     """
-    Vælger hvilke to markers der skal bruges.
+    Use TARGET_IDS if specified.
 
-    Hvis TARGET_IDS er sat, bruges præcis de IDs.
-
-    Ellers vælges de to markers med størst forskel i x-retningen.
-    Det giver god mening når to landmarks står på hver sin side af
-    den passage robotten skal køre imellem.
+    Otherwise choose the two markers with the largest separation
+    in the camera/robot x direction. This works well when the two
+    landmarks form the left and right side of a passage.
     """
-
     if TARGET_IDS is not None:
-        id_a, id_b = TARGET_IDS
+        id_a, id_b = map(int, TARGET_IDS)
 
-        if id_a in points and id_b in points:
-            return int(id_a), int(id_b)
+        if id_a not in points or id_b not in points:
+            raise RuntimeError(
+                f"Could not see both target IDs {id_a} and {id_b}. "
+                "Reposition MIRTE and run the program again."
+            )
 
-        return None
+        return id_a, id_b
 
     ids = list(points.keys())
 
     if len(ids) < 2:
-        return None
+        raise RuntimeError(
+            "Fewer than two ArUco markers were detected. "
+            "Reposition MIRTE so both markers are visible and run again."
+        )
 
     best_pair = None
-    best_horizontal_distance = -1.0
+    best_separation = -1.0
 
     for i in range(len(ids)):
         for j in range(i + 1, len(ids)):
             id_a = ids[i]
             id_b = ids[j]
 
-            horizontal_distance = abs(
-                points[id_a][0] - points[id_b][0]
-            )
+            separation = abs(points[id_a][0] - points[id_b][0])
 
-            if horizontal_distance > best_horizontal_distance:
-                best_horizontal_distance = horizontal_distance
+            if separation > best_separation:
+                best_separation = separation
                 best_pair = (id_a, id_b)
 
     return best_pair
 
 
-def midpoint_between(points, marker_pair):
+def calculate_plan(points, marker_pair):
     id_a, id_b = marker_pair
+
     p_a = points[id_a]
     p_b = points[id_b]
 
     midpoint = (p_a + p_b) / 2.0
-    return midpoint, p_a, p_b
 
-
-def midpoint_geometry(midpoint):
-    """
-    LocalMap bruger [x, z]:
-        x = sideværts
-        z = fremad
-
-    Afstanden er derfor:
-        sqrt(x^2 + z^2)
-
-    Robot-yaw følger normal ROS-konvention:
-        positiv yaw = venstre / mod uret
-
-    Kameraets x er positiv mod højre, så vinklen får et minus:
-        theta = -atan2(x, z)
-    """
     x = float(midpoint[0])
     z = float(midpoint[1])
 
+    # Euclidean distance from robot origin (0, 0) to midpoint.
     distance = math.hypot(x, z)
+
+    # Camera/LocalMap x is positive to the right.
+    # Positive robot yaw is left/counter-clockwise, hence the minus sign.
     turn_angle = -math.atan2(x, z)
 
-    return distance, turn_angle
+    gap_width = float(np.linalg.norm(p_a - p_b))
+
+    return midpoint, distance, turn_angle, gap_width
+
+
+def save_plan_plot(points, marker_pair, midpoint, filename=PLOT_FILE):
+    """
+    Save a plot BEFORE moving.
+
+    Robot start = (0, 0)
+    Landmarks = their measured [x, z] positions
+    Goal = midpoint between the selected landmarks
+    """
+    id_a, id_b = marker_pair
+
+    fig, ax = plt.subplots(figsize=(7, 8))
+
+    # Plot all detected landmarks.
+    for marker_id, point in points.items():
+        x, z = point
+
+        if marker_id in marker_pair:
+            marker = "s"
+            size = 100
+        else:
+            marker = "o"
+            size = 60
+
+        ax.scatter(x, z, marker=marker, s=size)
+        ax.text(
+            x + 0.025,
+            z + 0.025,
+            f"ID {marker_id}",
+            fontsize=10
+        )
+
+    # Robot start.
+    ax.scatter(0.0, 0.0, marker="^", s=120)
+    ax.text(0.025, 0.025, "MIRTE start", fontsize=10)
+
+    # Midpoint / target.
+    ax.scatter(midpoint[0], midpoint[1], marker="x", s=140)
+    ax.text(
+        midpoint[0] + 0.025,
+        midpoint[1] + 0.025,
+        "Target midpoint",
+        fontsize=10
+    )
+
+    # Line between selected landmarks.
+    p_a = points[id_a]
+    p_b = points[id_b]
+    ax.plot(
+        [p_a[0], p_b[0]],
+        [p_a[1], p_b[1]],
+        linestyle="--"
+    )
+
+    # Planned robot path.
+    ax.plot(
+        [0.0, midpoint[0]],
+        [0.0, midpoint[1]],
+        linestyle="-"
+    )
+
+    ax.set_xlabel("x [m]  (left / right)")
+    ax.set_ylabel("z [m]  (forward)")
+    ax.set_title(
+        f"One-shot plan between ArUco ID {id_a} and ID {id_b}"
+    )
+    ax.grid(True)
+    ax.axis("equal")
+
+    # Make sure origin is visible with some margin.
+    all_x = [0.0, midpoint[0]] + [p[0] for p in points.values()]
+    all_z = [0.0, midpoint[1]] + [p[1] for p in points.values()]
+
+    x_margin = 0.25
+    z_margin = 0.25
+
+    ax.set_xlim(min(all_x) - x_margin, max(all_x) + x_margin)
+    ax.set_ylim(min(all_z) - z_margin, max(all_z) + z_margin)
+
+    fig.tight_layout()
+    fig.savefig(filename, dpi=160)
+    plt.close(fig)
 
 
 def rotate_robot(mirte, angle):
-    """Drej robotten angle radianer ved fast angular speed."""
-    if abs(angle) < 1e-6:
+    corrected_angle = angle * TURN_SCALE
+
+    if abs(corrected_angle) < math.radians(0.5):
+        print("Rotation is negligible. Skipping turn.")
         return
 
-    angular_velocity = math.copysign(ANGULAR_SPEED, angle)
-    duration = abs(angle) / ANGULAR_SPEED
+    angular_velocity = math.copysign(
+        ANGULAR_SPEED,
+        corrected_angle
+    )
+
+    duration = abs(corrected_angle) / ANGULAR_SPEED
 
     print(
-        f"Drejer {math.degrees(angle):+.1f} grader "
-        f"({duration:.2f} s)"
+        f"Rotating {math.degrees(corrected_angle):+.2f} degrees "
+        f"for {duration:.2f} s"
     )
 
     mirte.drive(
@@ -224,16 +275,29 @@ def rotate_robot(mirte, angle):
     )
 
 
-def drive_forward(mirte, distance):
-    """Kør et kontrolleret lille stykke lige frem."""
-    if distance <= 0.0:
+def drive_to_target(mirte, distance):
+    drive_distance = max(
+        0.0,
+        distance - STOP_BEFORE_MIDPOINT
+    )
+
+    drive_distance *= DISTANCE_SCALE
+
+    if drive_distance <= 0.0:
+        print("No forward movement is needed.")
         return
 
-    duration = distance / LINEAR_SPEED
+    if drive_distance > MAX_DRIVE_DISTANCE:
+        raise RuntimeError(
+            f"Calculated drive distance is {drive_distance:.2f} m, "
+            f"which exceeds safety limit {MAX_DRIVE_DISTANCE:.2f} m."
+        )
+
+    duration = drive_distance / LINEAR_SPEED
 
     print(
-        f"Kører {distance:.3f} m frem "
-        f"({duration:.2f} s)"
+        f"Driving {drive_distance:.3f} m forward "
+        f"for {duration:.2f} s"
     )
 
     mirte.drive(
@@ -241,22 +305,6 @@ def drive_forward(mirte, distance):
         0.0,
         duration
     )
-
-
-def search_for_pair(mirte):
-    """
-    Drej lidt til venstre for at søge efter markers.
-    Hvis robotten søger den forkerte vej i jeres opsætning, kan fortegnet
-    på SEARCH_TURN_ANGLE ændres.
-    """
-    print("Kan ikke se begge target-markers. Søger...")
-
-    rotate_robot(
-        mirte,
-        SEARCH_TURN_ANGLE
-    )
-
-    time.sleep(SEARCH_PAUSE)
 
 
 # ---------------------------------------------------------------------------
@@ -267,141 +315,102 @@ def main():
     mirte = None
 
     try:
-        print("Starter MIRTE...")
+        print("Starting MIRTE...")
         mirte = KU_Mirte()
 
-        # Giv kamera/ROS lidt tid til at starte.
+        # Let camera / ROS initialize.
         time.sleep(1.0)
 
-        # Vi bruger jeres eksisterende ArUco-kode fra local_map.py.
+        print()
+        print("Taking ONE ArUco map...")
+
         local_map = LocalMap()
 
-        locked_pair = None
+        # IMPORTANT:
+        # This is the only camera/map update in the program.
+        local_map.update(mirte)
 
-        for iteration in range(1, MAX_ITERATIONS + 1):
-            print()
-            print("=" * 64)
-            print(f"Iteration {iteration}/{MAX_ITERATIONS}")
+        points = landmark_dict(local_map.landmarks)
 
-            # LocalMap.update() kalder get_map_from_mirte(), som:
-            # - tager kamera-billede
-            # - finder ArUco markers
-            # - estimatePoseSingleMarkers()
-            # - korrigerer camera offset
-            local_map.update(mirte)
-
-            points = landmark_dict(local_map.landmarks)
-            print_landmarks(points)
-
-            # Første gang vi ser et brugbart marker-par, låser vi deres IDs.
-            if locked_pair is None:
-                locked_pair = choose_marker_pair(points)
-
-                if locked_pair is not None:
-                    print(
-                        f"Låser target-markers: "
-                        f"ID {locked_pair[0]} og ID {locked_pair[1]}"
-                    )
-
-            # Hvis vi endnu ikke har fundet to markers.
-            if locked_pair is None:
-                search_for_pair(mirte)
-                continue
-
-            id_a, id_b = locked_pair
-
-            # Hvis én af de låste markers midlertidigt forsvinder ud af billedet.
-            if id_a not in points or id_b not in points:
-                print(
-                    f"Mangler ID {id_a} eller ID {id_b} i kameraet."
-                )
-                search_for_pair(mirte)
-                continue
-
-            midpoint, p_a, p_b = midpoint_between(
-                points,
-                locked_pair
+        if not points:
+            raise RuntimeError(
+                "No ArUco markers were detected. "
+                "Reposition MIRTE and run the program again."
             )
 
-            distance, turn_angle = midpoint_geometry(midpoint)
+        print_landmarks(points)
 
-            gap_width = float(np.linalg.norm(p_a - p_b))
-
-            print(
-                f"Marker ID {id_a}: "
-                f"[x={p_a[0]:+.3f}, z={p_a[1]:+.3f}] m"
-            )
-            print(
-                f"Marker ID {id_b}: "
-                f"[x={p_b[0]:+.3f}, z={p_b[1]:+.3f}] m"
-            )
-            print(f"Afstand mellem markers: {gap_width:.3f} m")
-            print(
-                "Midtpunkt: "
-                f"[x={midpoint[0]:+.3f}, z={midpoint[1]:+.3f}] m"
-            )
-            print(f"Afstand til midtpunkt: {distance:.3f} m")
-            print(
-                f"Vinkel til midtpunkt: "
-                f"{math.degrees(turn_angle):+.1f} grader"
-            )
-
-            # Målet er nået.
-            if distance <= STOP_DISTANCE:
-                stop_robot(mirte)
-
-                print()
-                print("MÅL NÅET")
-                print(
-                    f"Robotten er inden for {STOP_DISTANCE:.2f} m "
-                    "af midtpunktet mellem de to ArUco markers."
-                )
-                return
-
-            # Hvis midtpunktet faktisk ligger bag robotten, er noget gået galt
-            # eller robotten er kørt forbi. Drej først i stedet for at bakke.
-            if midpoint[1] <= 0.0:
-                print(
-                    "Midtpunktet ligger ikke foran robotten. "
-                    "Drejer mod det før videre kørsel."
-                )
-                rotate_robot(mirte, turn_angle)
-                time.sleep(CAMERA_SETTLE_TIME)
-                continue
-
-            # Først ret retningen ind.
-            if abs(turn_angle) > ANGLE_TOLERANCE:
-                rotate_robot(mirte, turn_angle)
-                time.sleep(CAMERA_SETTLE_TIME)
-                continue
-
-            # Derefter kør kun et lille stykke og mål igen.
-            remaining = max(0.0, distance - STOP_DISTANCE)
-            forward_step = min(
-                MAX_FORWARD_STEP,
-                remaining
-            )
-
-            drive_forward(
-                mirte,
-                forward_step
-            )
-
-            time.sleep(CAMERA_SETTLE_TIME)
+        marker_pair = choose_marker_pair(points)
+        id_a, id_b = marker_pair
 
         print()
-        print(
-            "STOP: Maksimum antal iterationer blev nået "
-            "uden at nå midtpunktet."
+        print(f"Selected target markers: ID {id_a} and ID {id_b}")
+
+        midpoint, distance, turn_angle, gap_width = calculate_plan(
+            points,
+            marker_pair
         )
+
+        print()
+        print("Calculated one-shot plan:")
+        print(f"  Distance between markers : {gap_width:.3f} m")
+        print(
+            f"  Midpoint                 : "
+            f"x={midpoint[0]:+.3f} m, z={midpoint[1]:+.3f} m"
+        )
+        print(f"  Distance to midpoint     : {distance:.3f} m")
+        print(
+            f"  Required turn            : "
+            f"{math.degrees(turn_angle):+.2f} degrees"
+        )
+
+        if midpoint[1] <= 0.0:
+            raise RuntimeError(
+                "The calculated midpoint is not in front of MIRTE. "
+                "For this test, place MIRTE in front of the two markers."
+            )
+
+        save_plan_plot(
+            points,
+            marker_pair,
+            midpoint
+        )
+
+        print()
+        print(f"Saved plan plot to: {os.path.abspath(PLOT_FILE)}")
+
+        print()
+        print("Camera measurements are now finished.")
+        print("MIRTE will execute this fixed estimate without looking again.")
+
+        # Step 1: rotate once to face the originally calculated midpoint.
+        rotate_robot(
+            mirte,
+            turn_angle
+        )
+
+        time.sleep(0.25)
+
+        # Step 2: drive the originally calculated distance.
+        drive_to_target(
+            mirte,
+            distance
+        )
+
+        # Explicit stop.
+        stop_robot(mirte)
+
+        print()
+        print("Finished.")
+        print("MIRTE has stopped after executing the original one-shot plan.")
 
     except KeyboardInterrupt:
         print()
-        print("Ctrl+C modtaget. Stopper robotten.")
+        print("Ctrl+C received. Stopping MIRTE.")
 
     except Exception as exc:
         print()
-        print("FEJL:")
+        print("ERROR:")
         print(exc)
         raise
 
@@ -409,7 +418,7 @@ def main():
         if mirte is not None:
             stop_robot(mirte)
 
-        print("Robot stoppet.")
+        print("Robot stopped.")
 
 
 if __name__ == "__main__":

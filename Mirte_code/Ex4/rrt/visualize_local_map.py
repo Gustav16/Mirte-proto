@@ -1,56 +1,174 @@
 #Mirte Proto code
 
+import time
+import sys
+import os
+import json
+import signal
 import matplotlib.pyplot as plt
 
+# --------------------------------------------------
+# Import KU_Mirte and LocalMap
+# --------------------------------------------------
 
-def plot_local_map(landmarks, mirte_radius=0.3, landmark_radius=0.5, ax=None, show=True):
-    """
-    Plot a local map.
+sys.path.append(
+    os.path.join(
+        os.path.dirname(__file__),
+        '../../../Mirte/ku_mirte_python'
+    )
+)
 
-    landmarks: list of [position, landmark_id] pairs, where position is an
-               (x, z) array/tuple in meters, robot-centered — the format
-               returned by LocalMap.get_map_from_mirte / LocalMap.landmarks.
-    """
-    if ax is None:
-        _, ax = plt.subplots()
+from ku_mirte import KU_Mirte
+from local_map import LocalMap
 
-    # mirte sits at the origin, facing +z
-    ax.add_patch(plt.Circle((0, 0), mirte_radius, color='blue', alpha=0.3))
-    ax.plot(0, 0, 'b^', markersize=10, label='mirte')
+
+# --------------------------------------------------
+# Output files
+# --------------------------------------------------
+
+OUTPUT_DIR = os.path.dirname(os.path.abspath(__file__))
+JSON_PATH = os.path.join(OUTPUT_DIR, "local_map.json")
+PNG_PATH = os.path.join(OUTPUT_DIR, "local_map.png")
+
+
+# --------------------------------------------------
+# Plotting
+# --------------------------------------------------
+
+def plot_local_map(landmarks):
+    plt.clf()
+
+    # Mirte position
+    plt.scatter(0, 0)
+    plt.text(0, 0, "Mirte", fontsize=10)
+
+    # Landmarks
+    for position, landmark_id in landmarks:
+        x, z = position
+
+        plt.scatter(x, z)
+        plt.text(
+            x,
+            z,
+            f"ID {landmark_id}",
+            fontsize=10
+        )
+
+    plt.axhline(0, linewidth=1)
+    plt.axvline(0, linewidth=1)
+
+    plt.xlabel("x (m)")
+    plt.ylabel("z (m)")
+    plt.title("Local Landmark Map")
+    plt.grid(True)
+
+    # Fixed local map area
+    plt.xlim(-3, 3)
+    plt.ylim(0, 5)
+
+    # Equal geometric scale
+    ax = plt.gca()
+    ax.set_aspect("equal", adjustable="box")
+
+    plt.pause(0.01)
+
+
+# --------------------------------------------------
+# Save map
+# --------------------------------------------------
+
+def save_map_json(landmarks, filename):
+    data = []
 
     for position, landmark_id in landmarks:
         x, z = position
-        ax.add_patch(plt.Circle((x, z), landmark_radius, color='red', alpha=0.2))
-        ax.plot(x, z, 'ro')
-        ax.annotate(str(landmark_id), (x, z), textcoords="offset points", xytext=(5, 5))
 
-    ax.set_xlabel('x [m]')
-    ax.set_ylabel('z [m]')
-    ax.set_aspect('equal', adjustable='datalim')
-    ax.grid(True)
-    ax.legend(loc='upper right')
+        data.append({
+            "id": int(landmark_id),
+            "x_m": float(x),
+            "z_m": float(z)
+        })
 
-    if show:
-        plt.show()
+    with open(filename, "w") as f:
+        json.dump(data, f, indent=4)
 
-    return ax
+    print(f"Saved map data to: {filename}")
 
 
-if __name__ == "__main__":
-    import sys
-    import os
+# --------------------------------------------------
+# Start MIRTE
+# --------------------------------------------------
 
-    sys.path.append(
-        os.path.join(os.path.dirname(__file__), '../../../Mirte/ku_mirte_python')
+mirte = KU_Mirte()
+time.sleep(1)
+
+local_map = LocalMap()
+
+
+# --------------------------------------------------
+# Ctrl+C handling
+# --------------------------------------------------
+
+running = True
+
+
+def handle_sigint(signum, frame):
+    global running
+
+    print(
+        "\nCtrl+C received. "
+        "Finishing current iteration and saving map..."
     )
 
-    from ku_mirte import KU_Mirte
-    from local_map import LocalMap
+    running = False
 
-    mirte = KU_Mirte()
-    local_map = LocalMap()
-    local_map.update(mirte)
 
-    plot_local_map(local_map.landmarks)
+signal.signal(signal.SIGINT, handle_sigint)
 
-    mirte.close()
+
+# --------------------------------------------------
+# Interactive plot
+# --------------------------------------------------
+
+plt.ion()
+
+
+# --------------------------------------------------
+# Main loop
+# --------------------------------------------------
+
+try:
+
+    while running:
+
+        local_map.update(mirte)
+
+        print(local_map.landmarks)
+
+        plot_local_map(local_map.landmarks)
+
+        time.sleep(0.3)
+
+
+finally:
+
+    print("\nSaving final map...")
+
+    save_map_json(
+        local_map.landmarks,
+        JSON_PATH
+    )
+
+    plt.savefig(
+        PNG_PATH,
+        dpi=200,
+        bbox_inches="tight"
+    )
+
+    print(f"Saved plot to: {PNG_PATH}")
+
+    plt.close("all")
+
+    del mirte
+
+    print("Finished.")

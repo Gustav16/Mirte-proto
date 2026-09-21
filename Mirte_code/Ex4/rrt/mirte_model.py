@@ -36,22 +36,20 @@ from robot_models import RobotModel
 class MirteModel(RobotModel):
 
     def forward_dyn(self, x, u, T):
-        path = [x.copy()]
-
-        theta = 0.0  # orientation used internally
+        path = []
+        x_current = x.copy()
 
         for i in range(T):
             distance, dtheta = u[i]
 
-            theta += dtheta
+            x_current[2] += dtheta
+            x_current[0] += distance * np.cos(x_current[2])
+            x_current[1] += distance * np.sin(x_current[2])
 
-            x_new = path[-1].copy()
-            x_new[0] += distance * np.cos(theta)
-            x_new[1] += distance * np.sin(theta)
+            # Only return x, y points
+            path.append(x_current[:2].copy())
 
-            path.append(x_new)
-
-        return path[1:]
+        return path
 
     def inverse_dyn(self, x, x_goal, T):
         dx = x_goal[0] - x[0]
@@ -59,18 +57,26 @@ class MirteModel(RobotModel):
 
         distance = np.linalg.norm([dx, dy])
 
-        if distance == 0:
-            return [x.copy()]
+        if distance <= 1e-6:
+            return [x[:2].copy()]
 
-        # Direction towards target
-        theta = -np.arctan2(dy, dx)
+        # Direction towards goal
+        target_theta = -np.arctan2(dy, dx)
 
-        # Rotate first, then drive
+        # Rotation needed from current orientation
+        dtheta = target_theta - x[2]
+        dtheta = np.arctan2(
+            np.sin(dtheta),
+            np.cos(dtheta)
+        )
+
+        u = []
+
         # Only rotate if necessary
         if abs(dtheta) > 1e-6:
             u.append(np.array([0.0, dtheta]))
 
-        # Drive towards the target
+        # Drive towards goal
         for _ in range(T - len(u)):
             step = min(self.ctrl_range[1], distance)
 
@@ -82,4 +88,3 @@ class MirteModel(RobotModel):
                 break
 
         return self.forward_dyn(x, u, len(u))
-

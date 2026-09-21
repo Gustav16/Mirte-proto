@@ -6,6 +6,7 @@ import os
 import json
 import signal
 import matplotlib.pyplot as plt
+from matplotlib.patches import Circle
 
 # --------------------------------------------------
 # Import KU_Mirte and LocalMap
@@ -30,6 +31,9 @@ OUTPUT_DIR = os.path.dirname(os.path.abspath(__file__))
 JSON_PATH = os.path.join(OUTPUT_DIR, "local_map.json")
 PNG_PATH = os.path.join(OUTPUT_DIR, "local_map.png")
 
+MIRTE_RADIUS = 0.20   # 20 cm
+LANDMARK_RADIUS = 0.30  # 30 cm
+
 
 # --------------------------------------------------
 # Plotting
@@ -37,8 +41,10 @@ PNG_PATH = os.path.join(OUTPUT_DIR, "local_map.png")
 
 def plot_local_map(landmarks):
     plt.clf()
+    ax = plt.gca()
 
     # Mirte position
+    ax.add_patch(Circle((0, 0), MIRTE_RADIUS, color='blue', alpha=0.3))
     plt.scatter(0, 0)
     plt.text(0, 0, "Mirte", fontsize=10)
 
@@ -46,6 +52,7 @@ def plot_local_map(landmarks):
     for position, landmark_id in landmarks:
         x, z = position
 
+        ax.add_patch(Circle((x, z), LANDMARK_RADIUS, color='red', alpha=0.2))
         plt.scatter(x, z)
         plt.text(
             x,
@@ -67,7 +74,6 @@ def plot_local_map(landmarks):
     plt.ylim(0, 5)
 
     # Equal geometric scale
-    ax = plt.gca()
     ax.set_aspect("equal", adjustable="box")
 
     plt.pause(0.01)

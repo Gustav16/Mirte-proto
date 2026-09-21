@@ -262,7 +262,7 @@ def main():
         goal=[0, 1.9],
         robot_model=robot,
         map=map,
-        expand_dis=0.5, #0.5 meters
+        expand_dis=0.4, #0.4 meters
         path_resolution=path_res, #10 cm
         )
     

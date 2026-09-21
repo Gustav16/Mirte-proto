@@ -35,9 +35,8 @@ PNG_PATH = os.path.join(OUTPUT_DIR, "local_map.png")
 MIRTE_RADIUS = 0.20   # 20 cm
 LANDMARK_RADIUS = 0.30  # 30 cm
 
-# Map area matches LocalMap.map_area / the RRT planning bounds: a 2x2 m
-# arena with mirte starting in the (0, 0) corner.
-MAP_XLIM = (0, 2)
+# 2x2 m local map, centered on mirte.
+MAP_XLIM = (-1, 1)
 MAP_YLIM = (0, 2)
 GRID_STEP = 0.25  # 25 cm
 
@@ -88,6 +87,27 @@ def plot_local_map(landmarks):
     plt.pause(0.01)
 
 
+def plot_path(path, start=None, goal=None):
+    """
+    Draw an RRT route on top of the currently plotted local map.
+
+    path: list of [x, z] points, e.g. RRT.generate_final_course()'s result.
+    """
+    ax = plt.gca()
+
+    xs = [p[0] for p in path]
+    zs = [p[1] for p in path]
+    ax.plot(xs, zs, '-r', linewidth=2, label='path')
+
+    if start is not None:
+        ax.plot(start[0], start[1], 'xg', markersize=10, label='start')
+    if goal is not None:
+        ax.plot(goal[0], goal[1], 'xb', markersize=10, label='goal')
+
+    ax.legend(loc='upper right')
+    plt.pause(0.01)
+
+
 # --------------------------------------------------
 # Save map
 # --------------------------------------------------
@@ -110,80 +130,76 @@ def save_map_json(landmarks, filename):
     print(f"Saved map data to: {filename}")
 
 
-# --------------------------------------------------
-# Start MIRTE
-# --------------------------------------------------
+if __name__ == "__main__":
 
-mirte = KU_Mirte()
-time.sleep(1)
+    # ----------------------------------------------
+    # Start MIRTE
+    # ----------------------------------------------
 
-local_map = LocalMap()
+    mirte = KU_Mirte()
+    time.sleep(1)
 
+    local_map = LocalMap()
 
-# --------------------------------------------------
-# Ctrl+C handling
-# --------------------------------------------------
+    # ----------------------------------------------
+    # Ctrl+C handling
+    # ----------------------------------------------
 
-running = True
+    running = True
 
+    def handle_sigint(signum, frame):
+        global running
 
-def handle_sigint(signum, frame):
-    global running
+        print(
+            "\nCtrl+C received. "
+            "Finishing current iteration and saving map..."
+        )
 
-    print(
-        "\nCtrl+C received. "
-        "Finishing current iteration and saving map..."
-    )
+        running = False
 
-    running = False
+    signal.signal(signal.SIGINT, handle_sigint)
 
+    # ----------------------------------------------
+    # Interactive plot
+    # ----------------------------------------------
 
-signal.signal(signal.SIGINT, handle_sigint)
+    plt.ion()
 
+    # ----------------------------------------------
+    # Main loop
+    # ----------------------------------------------
 
-# --------------------------------------------------
-# Interactive plot
-# --------------------------------------------------
+    try:
 
-plt.ion()
+        while running:
 
+            local_map.update(mirte)
 
-# --------------------------------------------------
-# Main loop
-# --------------------------------------------------
+            print(local_map.landmarks)
 
-try:
+            plot_local_map(local_map.landmarks)
 
-    while running:
+            time.sleep(0.3)
 
-        local_map.update(mirte)
+    finally:
 
-        print(local_map.landmarks)
+        print("\nSaving final map...")
 
-        plot_local_map(local_map.landmarks)
+        save_map_json(
+            local_map.landmarks,
+            JSON_PATH
+        )
 
-        time.sleep(0.3)
+        plt.savefig(
+            PNG_PATH,
+            dpi=200,
+            bbox_inches="tight"
+        )
 
+        print(f"Saved plot to: {PNG_PATH}")
 
-finally:
+        plt.close("all")
 
-    print("\nSaving final map...")
+        del mirte
 
-    save_map_json(
-        local_map.landmarks,
-        JSON_PATH
-    )
-
-    plt.savefig(
-        PNG_PATH,
-        dpi=200,
-        bbox_inches="tight"
-    )
-
-    print(f"Saved plot to: {PNG_PATH}")
-
-    plt.close("all")
-
-    del mirte
-
-    print("Finished.")
+        print("Finished.")

@@ -201,6 +201,7 @@ sys.path.append(
 
 from ku_mirte import KU_Mirte
 import grid_occ, mirte_model, local_map
+from visualize_local_map import plot_local_map, plot_path, PNG_PATH
 
 
 def Execute_path(path, mirte):
@@ -295,17 +296,17 @@ def main():
             print("Cannot find path")
         else:
             print("found path!!")
-            #execute path
             print(path)
-            Execute_path(path, mirte)
 
-            # Draw final path
-            if show_animation:
-                rrt.draw_graph()
-                plt.plot([x for (x, y) in path], [y for (x, y) in path], '-r')
-                plt.grid(True)
-                plt.pause(0.01)  # Need for Mac
-                plt.show()
+            # Draw local map + planned route in the same graph
+            # (generate_final_course returns the path goal-first)
+            plot_local_map(map.landmarks)
+            plot_path(path, start=path[-1], goal=path[0])
+            plt.savefig(PNG_PATH, dpi=200, bbox_inches="tight")
+            plt.pause(0.01)  # Need for Mac
+
+            #execute path
+            Execute_path(path, mirte)
     del mirte
 
 if __name__ == '__main__':

@@ -239,7 +239,7 @@ def Execute_path(path, mirte):
 
 def main():
     path_res = 0.1 #10 cm
-    mirte = mirte = KU_Mirte()
+    mirte = KU_Mirte()
     time.sleep(1)  # wait for camera to setup
     map = local_map.LocalMap()
     map.update(mirte)
@@ -286,6 +286,7 @@ def main():
         else:
             print("found path!!")
             #execute path
+            Execute_path(path, mirte)
 
             # Draw final path
             if show_animation:
@@ -294,7 +295,7 @@ def main():
                 plt.grid(True)
                 plt.pause(0.01)  # Need for Mac
                 plt.show()
-
+    del mirte
 
 if __name__ == '__main__':
     main()

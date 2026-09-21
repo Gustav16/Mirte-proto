@@ -5,6 +5,7 @@ import sys
 import os
 import json
 import signal
+import numpy as np
 import matplotlib.pyplot as plt
 from matplotlib.patches import Circle
 
@@ -33,6 +34,12 @@ PNG_PATH = os.path.join(OUTPUT_DIR, "local_map.png")
 
 MIRTE_RADIUS = 0.20   # 20 cm
 LANDMARK_RADIUS = 0.30  # 30 cm
+
+# Map area matches LocalMap.map_area / the RRT planning bounds: a 2x2 m
+# arena with mirte starting in the (0, 0) corner.
+MAP_XLIM = (0, 2)
+MAP_YLIM = (0, 2)
+GRID_STEP = 0.25  # 25 cm
 
 
 # --------------------------------------------------
@@ -67,11 +74,13 @@ def plot_local_map(landmarks):
     plt.xlabel("x (m)")
     plt.ylabel("z (m)")
     plt.title("Local Landmark Map")
-    plt.grid(True)
 
-    # Fixed local map area
-    plt.xlim(-3, 3)
-    plt.ylim(0, 5)
+    # Fixed local map area, gridlines every GRID_STEP meters
+    plt.xlim(*MAP_XLIM)
+    plt.ylim(*MAP_YLIM)
+    ax.set_xticks(np.arange(MAP_XLIM[0], MAP_XLIM[1] + 1e-9, GRID_STEP))
+    ax.set_yticks(np.arange(MAP_YLIM[0], MAP_YLIM[1] + 1e-9, GRID_STEP))
+    plt.grid(True)
 
     # Equal geometric scale
     ax.set_aspect("equal", adjustable="box")

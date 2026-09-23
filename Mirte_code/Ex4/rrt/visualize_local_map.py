@@ -32,8 +32,8 @@ OUTPUT_DIR = os.path.dirname(os.path.abspath(__file__))
 JSON_PATH = os.path.join(OUTPUT_DIR, "local_map.json")
 PNG_PATH = os.path.join(OUTPUT_DIR, "local_map.png")
 
-MIRTE_RADIUS = 0.20   # 20 cm
-LANDMARK_RADIUS = 0.30  # 30 cm
+MIRTE_RADIUS = 0.22   # 22 cm, keep in sync with LocalMap.mirte_radius
+LANDMARK_RADIUS = 0.20  # 20 cm, keep in sync with LocalMap.landmark_radius
 
 # 2x2 m local map, centered on mirte.
 MAP_XLIM = (-1, 1)

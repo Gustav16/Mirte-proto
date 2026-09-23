@@ -104,7 +104,7 @@ class LocalMap:
         self,
         landmarks=None,
         landmark_radius=0.20,
-        mirte_radius=0.20,
+        mirte_radius=0.22,
         camera_offset=CAMERA_OFFSET_FROM_ROBOT_CENTER,
         low=(-2.0, 0.0),
         high=(2.0, 3.0),

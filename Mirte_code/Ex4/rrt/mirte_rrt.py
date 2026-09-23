@@ -30,7 +30,7 @@ class RRT:
         """
 
         def __init__(self, pos):
-            self.pos = pos      #configuration position, usually 2D/3D for planar robots  
+            self.pos = np.asarray(pos, dtype=float)      #configuration position, usually 2D/3D for planar robots  
             self.path = []      #the path with a integration horizon. this could be just a straight line for holonomic system
             self.parent = None
         

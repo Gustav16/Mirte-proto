@@ -209,7 +209,7 @@ def Execute_path(path, mirte):
     current_pose = np.array([0.0, 0.0, 0.0])
 
     linear_speed = 0.3   # m/s
-    angular_speed = 0.8   # rad/s
+    angular_speed = 0.7   # rad/s
 
     for point in path[1:]:
         dx = point[0] - current_pose[0]

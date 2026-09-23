@@ -260,7 +260,7 @@ def main():
     robot = robot_models.PointMassModel(ctrl_range=[-path_res, path_res])
 
     #standard goal destination
-    goal = [0, 2.9]
+    goal = [0, 1.9]
 
     #go betweem 2 landmarks
     landmark_count = len(map.landmarks)

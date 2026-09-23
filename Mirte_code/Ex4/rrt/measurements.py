@@ -40,6 +40,6 @@ while (True):
         LT_sign = float(input('sign: '))
         LT_degrees = float(input('degrees: '))
         LT_scaler = float(input('scale: '))
-        LT_time = math.radians(LT_degrees) / LT_ang_speed
+        LT_time = LT_scaler*math.radians(LT_degrees) / LT_ang_speed
         mirte.drive(LT_lin_speed, LT_sign * LT_ang_speed, LT_time)
 del mirte

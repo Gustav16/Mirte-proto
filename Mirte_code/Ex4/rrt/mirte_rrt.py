@@ -260,20 +260,20 @@ def main():
     goal = [0, 1.9]
 
     #go betweem 2 landmarks
-    landmark_count = len(map.landmarks)
-    if landmark_count > 1:
-        for i in range(landmark_count-1):
+    # landmark_count = len(map.landmarks)
+    # if landmark_count > 1:
+    #     for i in range(landmark_count-1):
             
-            rrt = RRT(
-                    start=[0, 0],
-                    goal=[0, 1.9],
-                    robot_model=robot,
-                    map=map,
-                    expand_dis=0.4, #0.4 meters
-                    path_resolution=path_res, #10 cm
-                    )
-            show_animation = False
-            writer = None
+    #         rrt = RRT(
+    #                 start=[0, 0],
+    #                 goal=[0, 1.9],
+    #                 robot_model=robot,
+    #                 map=map,
+    #                 expand_dis=0.4, #0.4 meters
+    #                 path_resolution=path_res, #10 cm
+    #                 )
+    #         show_animation = False
+    #         writer = None
     
     rrt = RRT(
         start=[0, 0],

@@ -44,3 +44,62 @@ class PointMassModel(RobotModel):
         u = np.array([dir*min( [self.ctrl_range[1], dist/float(T)] ) for _ in range(T)])
 
         return self.forward_dyn(x, u, T)
+
+class MirteModel(RobotModel):
+
+    def __init__(self, ctrl_range):
+        super().__init__(ctrl_range)
+        self.theta = 0.0
+
+    def forward_dyn(self, x, u, T):
+        path = []
+
+        x_current = np.array(x, dtype=float)
+
+        for i in range(T):
+            distance, dtheta = u[i]
+
+            self.theta += dtheta
+
+            x_current[0] += distance * np.cos(self.theta)
+            x_current[1] += distance * np.sin(self.theta)
+
+            path.append(x_current.copy())
+
+        return path
+
+    def inverse_dyn(self, x, x_goal, T):
+        dx = x_goal[0] - x[0]
+        dy = x_goal[1] - x[1]
+
+        distance = np.linalg.norm([dx, dy])
+
+        if distance <= 1e-6:
+            return [x.copy()]
+
+        target_theta = np.arctan2(dy, dx)
+
+        dtheta = target_theta - self.theta
+        dtheta = np.arctan2(
+            np.sin(dtheta),
+            np.cos(dtheta)
+        )
+
+        u = []
+
+        # Rotate only if necessary
+        if abs(dtheta) > 1e-6:
+            u.append(np.array([0.0, dtheta]))
+
+        # Drive towards target
+        for _ in range(T - len(u)):
+            step = min(self.ctrl_range[1], distance)
+
+            u.append(np.array([step, 0.0]))
+
+            distance -= step
+
+            if distance <= 1e-6:
+                break
+
+        return self.forward_dyn(x, u, len(u))

@@ -4,7 +4,7 @@ between_v2.py
 One camera map -> choose a passage -> plan -> execute -> stop.
 
 Changes from the first between.py:
-1. Uses local_map_v2.py, where ArUco positions are relative to MIRTE's center.
+1. Uses local_map.py, where ArUco positions are relative to MIRTE's center.
 2. Slightly higher translation speed: 0.18 m/s instead of 0.15 m/s.
 3. Uses MIRTE's holonomic/mecanum movement:
        mirte.drive([forward_speed, sideways_speed], ...)
@@ -18,7 +18,7 @@ Changes from the first between.py:
 
 Files expected in the same folder:
     between_v2.py
-    local_map_v2.py
+    local_map.py
     rrt.py
     robot_models.py
 """
@@ -45,7 +45,7 @@ sys.path.append(
 
 from ku_mirte import KU_Mirte
 
-from local_map_v2 import LocalMap
+from local_map import LocalMap
 from robot_models import PointMassModel
 from rrt import RRT
 

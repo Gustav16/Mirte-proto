@@ -200,7 +200,7 @@ sys.path.append(
 )
 
 from ku_mirte import KU_Mirte
-import grid_occ, mirte_model, local_map
+import grid_occ, robot_models_models, local_map
 from visualize_local_map import plot_local_map, plot_path, PNG_PATH
 
 
@@ -256,7 +256,25 @@ def main():
     map.update(mirte)
     robot = mirte_model.MirteModel(ctrl_range=[-path_res, path_res])
 
-    #robot = robot_models.PointMassModel(ctrl_range=[-path_res, path_res])   #
+    #standard goal destination
+    goal = [0, 1.9]
+
+    #go betweem 2 landmarks
+    landmark_count = len(map.landmarks)
+    if landmark_count > 1:
+        for i in range(landmark_count-1):
+            
+            rrt = RRT(
+                    start=[0, 0],
+                    goal=[0, 1.9],
+                    robot_model=robot,
+                    map=map,
+                    expand_dis=0.4, #0.4 meters
+                    path_resolution=path_res, #10 cm
+                    )
+            show_animation = False
+            writer = None
+    
     rrt = RRT(
         start=[0, 0],
         goal=[0, 1.9],

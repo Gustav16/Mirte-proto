@@ -255,13 +255,15 @@ def main():
     path_res = 0.1 #10 cm
     mirte = KU_Mirte()
     time.sleep(1)  # wait for camera to setup
-    map = local_map.LocalMap()
+    map = local_map.LocalMap(low=(-1,0), high=(1,2))
     map.update(mirte)
     robot = robot_models.PointMassModel(ctrl_range=[-path_res, path_res])
 
     #standard goal destination
     goal = [0, 1.9]
 
+
+    print('landmark amount:', len(map.landmarks))
     #go betweem 2 landmarks
     landmark_count = len(map.landmarks)
     # if landmark_count > 1:

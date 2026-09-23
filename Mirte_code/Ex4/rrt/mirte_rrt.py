@@ -260,24 +260,27 @@ def main():
     goal = [0, 1.9]
 
     #go betweem 2 landmarks
-    # landmark_count = len(map.landmarks)
-    # if landmark_count > 1:
-    #     for i in range(landmark_count-1):
-            
-    #         rrt = RRT(
-    #                 start=[0, 0],
-    #                 goal=[0, 1.9],
-    #                 robot_model=robot,
-    #                 map=map,
-    #                 expand_dis=0.4, #0.4 meters
-    #                 path_resolution=path_res, #10 cm
-    #                 )
-    #         show_animation = False
-    #         writer = None
+    landmark_count = len(map.landmarks)
+    if landmark_count > 1:
+        point_a, _ = map.landmarks[0]
+        point_b, _ = map.landmarks[1]
+
+        x_a, y_a = point_a
+        x_b, y_b = point_b
+
+        goal = np.array([
+            (x_a + x_b) / 2,
+            (y_a + y_b) / 2
+        ])
+    else:
+        print('could not find 2 ids')
+        del mirte
+        return
+        
     
     rrt = RRT(
         start=[0, 0],
-        goal=[0, 1.9],
+        goal=goal,
         robot_model=robot,
         map=map,
         expand_dis=0.4, #0.4 meters

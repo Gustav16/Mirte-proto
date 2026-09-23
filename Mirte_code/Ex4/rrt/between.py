@@ -142,7 +142,7 @@ def bearing_to(point):
     x, z = point
 
     return math.atan2(
-        float(x),
+        -float(x),
         float(z)
     )
 

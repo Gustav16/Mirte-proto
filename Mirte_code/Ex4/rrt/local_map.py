@@ -57,7 +57,7 @@ arucoDict = cv2.aruco.getPredefinedDictionary(cv2.aruco.DICT_6X6_250)
 #
 # Your previous local_map.py used 0.10 m, although its comment said 8 cm.
 # For the first test this is therefore kept at 0.10 m.
-CAMERA_FORWARD_OFFSET = 0.10
+CAMERA_FORWARD_OFFSET = 0.14
 
 # Camera origin position expressed in the robot-center frame.
 # Map convention:

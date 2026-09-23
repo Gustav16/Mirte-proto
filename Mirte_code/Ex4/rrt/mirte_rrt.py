@@ -230,10 +230,12 @@ def Execute_path(path, mirte):
 
         # Rotate at fixed angular speed
         if abs(dtheta) > 1e-6:
+            scaler = 1.05 if dtheta > 0 else 1.10
+
             mirte.drive(
                 0.0,
                 np.sign(dtheta) * angular_speed,
-                abs(dtheta) / angular_speed
+                scaler * abs(dtheta) / angular_speed
             )
 
         # Drive at fixed linear speed

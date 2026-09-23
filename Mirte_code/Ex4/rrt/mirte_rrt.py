@@ -255,30 +255,30 @@ def main():
     path_res = 0.1 #10 cm
     mirte = KU_Mirte()
     time.sleep(1)  # wait for camera to setup
-    map = local_map.LocalMap(low=(-1,0), high=(1,2))
+    map = local_map.LocalMap()
     map.update(mirte)
     robot = robot_models.PointMassModel(ctrl_range=[-path_res, path_res])
 
     #standard goal destination
-    goal = [0, 1.9]
+    goal = [0, 2.9]
 
     #go betweem 2 landmarks
     landmark_count = len(map.landmarks)
-    if landmark_count > 1:
-        point_a, _ = map.landmarks[0]
-        point_b, _ = map.landmarks[1]
+    # if landmark_count > 1:
+    #     point_a, _ = map.landmarks[0]
+    #     point_b, _ = map.landmarks[1]
 
-        x_a, y_a = point_a
-        x_b, y_b = point_b
+    #     x_a, y_a = point_a
+    #     x_b, y_b = point_b
 
-        goal = np.array([
-            (x_a + x_b) / 2,
-            (y_a + y_b) / 2
-        ])
-    else:
-        print('could not find 2 ids')
-        del mirte
-        return
+    #     goal = np.array([
+    #         (x_a + x_b) / 2,
+    #         (y_a + y_b) / 2
+    #     ])
+    # else:
+    #     print('could not find 2 ids')
+    #     del mirte
+    #     return
         
     
     rrt = RRT(

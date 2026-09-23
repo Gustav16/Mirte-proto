@@ -152,7 +152,7 @@ class LocalMap:
             landmark = np.asarray(landmark, dtype=float)
 
             #use squrared distance as it is faster
-            if (pos - landmark)**2 <= clearance**2:
+            if np.sum((pos - landmark)**2) <= clearance**2:
                 return 1
 
         return 0

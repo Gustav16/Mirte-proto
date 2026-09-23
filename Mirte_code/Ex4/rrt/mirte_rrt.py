@@ -209,7 +209,7 @@ def Execute_path(path, mirte):
     current_pose = np.array([0.0, 0.0, 0.0])
 
     linear_speed = 0.3   # m/s
-    angular_speed = 0.5   # rad/s
+    angular_speed = 0.7   # rad/s
 
     for point in path[1:]:
         dx = point[0] - current_pose[0]
@@ -316,6 +316,9 @@ def main():
             print("found path!!")
             print(path)
 
+            #execute path
+            Execute_path(path, mirte)
+
             # Draw local map + planned route in the same graph
             # (generate_final_course returns the path goal-first)
             plot_local_map(map.landmarks)
@@ -324,8 +327,7 @@ def main():
             print(f"Saved plot to: {PNG_PATH}")
             plt.pause(0.01)  # Need for Mac
 
-            #execute path
-            Execute_path(path, mirte)
+            
     del mirte
 
 if __name__ == '__main__':

@@ -221,7 +221,7 @@ def Execute_path(path, mirte):
             continue
 
         # Direction towards next point
-        target_theta = -np.arctan2(dy, dx)
+        target_theta = np.arctan2(dy, dx)
 
         # Required rotation
         dtheta = target_theta - current_pose[2]

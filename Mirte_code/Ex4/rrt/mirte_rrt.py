@@ -325,7 +325,7 @@ def main():
             plt.pause(0.01)  # Need for Mac
 
             #execute path
-            Execute_path(path, mirte)
+            #Execute_path(path, mirte)
     del mirte
 
 if __name__ == '__main__':

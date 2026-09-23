@@ -200,7 +200,7 @@ sys.path.append(
 )
 
 from ku_mirte import KU_Mirte
-import grid_occ, robot_models_models, local_map
+import grid_occ, robot_models, local_map
 from visualize_local_map import plot_local_map, plot_path, PNG_PATH
 
 
@@ -254,7 +254,7 @@ def main():
     time.sleep(1)  # wait for camera to setup
     map = local_map.LocalMap()
     map.update(mirte)
-    robot = mirte_model.MirteModel(ctrl_range=[-path_res, path_res])
+    robot = robot_models.PointMassModel(ctrl_range=[-path_res, path_res])
 
     #standard goal destination
     goal = [0, 1.9]

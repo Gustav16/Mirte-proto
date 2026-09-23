@@ -211,7 +211,7 @@ def Execute_path(path, mirte):
     linear_speed = 0.3   # m/s
     angular_speed = 0.5   # rad/s
 
-    for point in path[::-1][1:]:
+    for point in path[1:]:
         dx = point[0] - current_pose[0]
         dy = point[1] - current_pose[1]
 
@@ -221,7 +221,7 @@ def Execute_path(path, mirte):
             continue
 
         # Direction towards next point
-        target_theta = np.arctan2(dy, dx)
+        target_theta = np.arctan2(dx, dy)
 
         # Required rotation
         dtheta = target_theta - current_pose[2]

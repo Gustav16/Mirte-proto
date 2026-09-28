@@ -45,3 +45,20 @@ IMPORTANT
 This is a local exploration strategy, not SLAM. After each exploration
 movement MIRTE takes a fresh local map and plans again. This keeps the
 implementation simple and close to the original course code.
+
+
+MIRTE IMPORT
+The runnable files add:
+../../../Mirte/ku_mirte_python
+to sys.path before importing KU_Mirte. This matches the import pattern
+used by the working visualize_local_map.py file.
+
+PATH DRAWINGS FOR run_to_box.py
+- to_box_plan.png:
+  local map and the final planned path to the requested box
+- full_search_path.png:
+  the complete sequence of planned exploration/path segments from the
+  original start until the target is found
+
+The full_search_path image is the route the planner expected to take.
+It is not an external ground-truth measurement of the robot trajectory.

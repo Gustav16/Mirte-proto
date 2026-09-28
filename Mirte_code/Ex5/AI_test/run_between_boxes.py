@@ -1,6 +1,18 @@
 import time
 
+import sys
+import os
+
+sys.path.append(
+    os.path.join(
+        os.path.dirname(__file__),
+        '../../../Mirte/ku_mirte_python'
+    )
+)
+
 from ku_mirte import KU_Mirte
+
+
 
 from between import goal_between_ids
 from mirte_rrt_smooth import make_map, plan_path, drive_path, save_path_plot

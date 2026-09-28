@@ -2,8 +2,21 @@ import math
 import time
 
 import numpy as np
+import matplotlib.pyplot as plt
+
+import sys
+import os
+
+sys.path.append(
+    os.path.join(
+        os.path.dirname(__file__),
+        '../../../Mirte/ku_mirte_python'
+    )
+)
 
 from ku_mirte import KU_Mirte
+
+
 
 from between import (
     find_safe_passage,
@@ -32,6 +45,82 @@ SEARCH_SPEED = 0.70
 # Prevent endless exploration.
 MAX_EXPLORE_STEPS = 20
 
+
+
+def transform_local_path(path, pose):
+    """
+    Convert a local planned path to the simple global drawing frame.
+
+    pose = [x, z, theta]
+    theta = 0 means forward in +z.
+    """
+    x0, z0, theta = pose
+    result = []
+
+    for point in path:
+        lx, lz = point
+
+        gx = x0 + math.cos(theta) * lx - math.sin(theta) * lz
+        gz = z0 + math.sin(theta) * lx + math.cos(theta) * lz
+
+        result.append(np.array([gx, gz]))
+
+    return result
+
+
+def update_drawing_pose(pose, local_path):
+    """
+    Update the drawing pose from the end direction of a local planned path.
+    This is only for the path drawing, not for robot control.
+    """
+    if len(local_path) < 2:
+        return pose
+
+    global_path = transform_local_path(local_path, pose)
+    end = global_path[-1]
+
+    a = local_path[-2]
+    b = local_path[-1]
+    dx = b[0] - a[0]
+    dz = b[1] - a[1]
+
+    local_heading = math.atan2(-dx, dz)
+
+    return np.array([
+        end[0],
+        end[1],
+        pose[2] + local_heading
+    ])
+
+
+def save_full_path(path_history, filename="full_search_path.png"):
+    """Save the complete path that the planner intended to take."""
+    if len(path_history) < 2:
+        return
+
+    xs = [p[0] for p in path_history]
+    zs = [p[1] for p in path_history]
+
+    plt.figure()
+    plt.plot(xs, zs, "-r", linewidth=2, label="planned path")
+    plt.plot(xs[0], zs[0], "xg", markersize=10, label="start")
+    plt.plot(xs[-1], zs[-1], "xb", markersize=10, label="finish")
+
+    plt.xlabel("x (m)")
+    plt.ylabel("z (m)")
+    plt.title("Complete Planned Search Path")
+    plt.grid(True)
+    plt.axis("equal")
+    plt.legend()
+
+    plt.savefig(
+        filename,
+        dpi=200,
+        bbox_inches="tight"
+    )
+    plt.close()
+
+    print(f"Saved complete path to: {filename}")
 
 def visible_ids(world_map):
     return [
@@ -81,7 +170,7 @@ def goal_towards_one_box(world_map):
     return goal, marker_id
 
 
-def explore_once(mirte, world_map):
+def explore_once(mirte, world_map, path_history, drawing_pose):
     """
     Choose one simple exploration action.
 
@@ -119,6 +208,16 @@ def explore_once(mirte, world_map):
             )
 
             if path is not None:
+                global_segment = transform_local_path(
+                    path,
+                    drawing_pose
+                )
+                path_history.extend(global_segment[1:])
+                drawing_pose[:] = update_drawing_pose(
+                    drawing_pose,
+                    path
+                )
+
                 drive_path(
                     mirte,
                     world_map,
@@ -142,6 +241,16 @@ def explore_once(mirte, world_map):
             )
 
             if path is not None:
+                global_segment = transform_local_path(
+                    path,
+                    drawing_pose
+                )
+                path_history.extend(global_segment[1:])
+                drawing_pose[:] = update_drawing_pose(
+                    drawing_pose,
+                    path
+                )
+
                 drive_path(
                     mirte,
                     world_map,
@@ -178,6 +287,10 @@ def main():
 
     mirte = KU_Mirte()
     time.sleep(1)
+
+    # Used only for drawing the complete planned route.
+    path_history = [np.array([0.0, 0.0])]
+    drawing_pose = np.array([0.0, 0.0, 0.0])
 
     try:
         for step in range(MAX_EXPLORE_STEPS):
@@ -231,22 +344,37 @@ def main():
                     )
                     explore_once(
                         mirte,
-                        world_map
+                        world_map,
+                        path_history,
+                        drawing_pose
                     )
                     continue
 
                 print("Path to target found.")
 
-                drive_path(
-                    mirte,
-                    world_map,
-                    path
+                global_segment = transform_local_path(
+                    path,
+                    drawing_pose
                 )
+                path_history.extend(global_segment[1:])
 
+                # Local map + final local RRT path.
                 save_path_plot(
                     world_map,
                     path,
                     "to_box_plan.png"
+                )
+
+                # Whole planned route from the original start.
+                save_full_path(
+                    path_history,
+                    "full_search_path.png"
+                )
+
+                drive_path(
+                    mirte,
+                    world_map,
+                    path
                 )
 
                 print(
@@ -263,12 +391,19 @@ def main():
 
             explore_once(
                 mirte,
-                world_map
+                world_map,
+                path_history,
+                drawing_pose
             )
 
         print(
             f"Stopped after {MAX_EXPLORE_STEPS} "
             f"exploration steps without reaching ID {target_id}."
+        )
+
+        save_full_path(
+            path_history,
+            "full_search_path.png"
         )
 
     finally:

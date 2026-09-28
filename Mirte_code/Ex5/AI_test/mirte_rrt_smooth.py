@@ -1,9 +1,8 @@
-# Mirte Proto code
+# Shared RRT, mapping and driving functions for MIRTE.
 
 import math
 import os
 import sys
-import time
 
 import matplotlib.pyplot as plt
 import numpy as np
@@ -15,16 +14,13 @@ sys.path.append(
     )
 )
 
-from ku_mirte import KU_Mirte
-
 import local_map
 import robot_models
 
-from between import find_between_goal
 from mcl import MCL
 from path_follower import follow_path
 from path_smoothing import smooth_path
-from visualize_local_map import plot_local_map, plot_path, PNG_PATH
+from visualize_local_map import plot_local_map, plot_path
 
 
 class RRT:
@@ -201,129 +197,61 @@ class RRT:
         return True
 
 
-sys.path.append(
-    os.path.join(os.path.dirname(__file__), '../../../Mirte/ku_mirte_python')
-)
-
-from ku_mirte import KU_Mirte
-import robot_models, local_map
-from between import find_between_goal
-from visualize_local_map import plot_local_map, plot_path, PNG_PATH
-from path_smoothing import smooth_path
-from path_follower import follow_path
-from mcl import MCL
+def make_map(mirte):
+    """Take one camera frame and make a local landmark map."""
+    world_map = local_map.LocalMap(
+        low=(-1.5, 0.0),
+        high=(1.5, 3.0)
+    )
+    world_map.update(mirte)
+    return world_map
 
 
-# --- Runtime settings -------------------------------------------------------
-PATH_RESOLUTION = 0.10
-EXPAND_DISTANCE = 0.40
-RRT_MAX_ITER = 1500
-MCL_PARTICLES = 1000
-
-
-def observations_from_local_map(sensor_map):
-    """Convert robot-relative ArUco [x,z] positions to MCL range+bearing."""
-    observations = []
-    for position, marker_id in sensor_map.landmarks:
-        x, z = np.asarray(position, dtype=float)
-        observations.append({
-            "id": int(marker_id),
-            "range": float(np.hypot(x, z)),
-            "bearing": float(np.arctan2(x, z)),
-        })
-    return observations
-
-
-def landmark_world_map(planning_map):
-    """Fixed landmark map in the coordinate frame at program start."""
-    return {
-        int(marker_id): np.asarray(position, dtype=float).copy()
-        for position, marker_id in planning_map.landmarks
-    }
-
-
-def make_localizer(planning_map):
-    """Initial belief around MIRTE's known start pose [0,0,0]."""
-    prior = np.empty((MCL_PARTICLES, 3), dtype=float)
-    prior[:, 0] = np.random.normal(0.0, 0.03, MCL_PARTICLES)
-    prior[:, 1] = np.random.normal(0.0, 0.03, MCL_PARTICLES)
-    prior[:, 2] = np.random.normal(0.0, np.deg2rad(4.0), MCL_PARTICLES)
-    return MCL(prior)
-
-
-def get_aruco_observations(mirte, localizer_map):
+def get_aruco_observations(mirte, sensor_map):
     """
-    Return observations as:
-        (marker_id, distance, bearing)
+    Take a fresh camera measurement.
 
-    local_map.get_landmarks() already converts detections to positions
-    relative to the robot centre.
+    Returns:
+        [(marker_id, distance, bearing), ...]
     """
-    detected = localizer_map.get_landmarks(mirte)
+    detected = sensor_map.get_map_from_mirte(mirte)
     observations = []
 
     for position, marker_id in detected:
-        x, z = position
-        distance = math.hypot(x, z)
-        bearing = math.atan2(-x, z)
+        x, z = np.asarray(position, dtype=float)
 
         observations.append(
-            (int(marker_id), distance, bearing)
+            (
+                int(marker_id),
+                float(math.hypot(x, z)),
+                float(math.atan2(-x, z)),
+            )
         )
 
     return observations
 
 
-def main():
+def plan_path(world_map, goal):
+    """Plan and simplify a local path from [0, 0] to goal."""
+    goal = np.asarray(goal, dtype=float)
+
+    if np.linalg.norm(goal) < 0.03:
+        return [np.array([0.0, 0.0]), goal]
+
     path_resolution = 0.10
 
-    mirte = KU_Mirte()
-    time.sleep(1)
-
-    # --------------------------------------------------
-    # 1. Build local map
-    # --------------------------------------------------
-    world_map = local_map.LocalMap(
-        low=(-1, 0),
-        high=(1, 2)
-    )
-    world_map.update(mirte)
-
-    print("landmark amount:", len(world_map.landmarks))
-
-    # --------------------------------------------------
-    # 2. Find a goal between landmarks
-    # --------------------------------------------------
-    goal, gate_ids = find_between_goal(world_map)
-
-    if goal is None:
-        print("Could not find a goal between landmarks.")
-        del mirte
-        return
-
-    print(
-        f"using passage between IDs "
-        f"{gate_ids[0]} and {gate_ids[1]}"
-    )
-    print(
-        f"goal: x={goal[0]:+.3f}, "
-        f"z={goal[1]:+.3f}"
-    )
-
-    # --------------------------------------------------
-    # 3. Plan path with the existing RRT
-    # --------------------------------------------------
     robot = robot_models.PointMassModel(
         ctrl_range=[-path_resolution, path_resolution]
     )
 
     rrt = RRT(
-        start=[0, 0],
+        start=[0.0, 0.0],
         goal=goal,
         robot_model=robot,
         map=world_map,
-        expand_dis=0.4,
+        expand_dis=0.40,
         path_resolution=path_resolution,
+        max_iter=1500,
     )
 
     path = rrt.planning(
@@ -332,37 +260,30 @@ def main():
     )
 
     if path is None:
-        print("Cannot find path.")
-        del mirte
-        return
+        return None
 
-    print("found path!!")
-
-    # RRT returns goal -> start. The follower uses start -> goal.
+    # RRT returns goal -> start.
     path = list(reversed(path))
 
-    # --------------------------------------------------
-    # 4. Simplify the path
-    # --------------------------------------------------
-    smooth = smooth_path(
+    return smooth_path(
         path,
         world_map,
         spacing=0.05
     )
 
-    print("raw path points:", len(path))
-    print("smooth path points:", len(smooth))
 
-    # --------------------------------------------------
-    # 5. Create MCL localizer
-    # --------------------------------------------------
+def drive_path(mirte, world_map, path):
+    """
+    Follow one local path.
+
+    A fresh MCL instance is used for this local movement.
+    After the movement, exploration takes a new camera map and can plan again.
+    """
     localizer = MCL(
         world_map,
         number_of_particles=300
     )
 
-    # Landmarks stay fixed in the coordinate system in which
-    # the initial local map was created.
     fixed_landmarks = list(world_map.landmarks)
 
     def observations():
@@ -371,39 +292,29 @@ def main():
             world_map
         )
 
-    print("initial pose:", localizer.estimate_pose())
-
-    # --------------------------------------------------
-    # 6. Follow the smoothed path
-    # --------------------------------------------------
     follow_path(
-        smooth,
+        path,
         mirte,
         localizer=localizer,
         get_observations=observations,
         landmarks=fixed_landmarks,
     )
 
-    # --------------------------------------------------
-    # 7. Save plot
-    # --------------------------------------------------
+
+def save_path_plot(world_map, path, filename):
+    """Save the most recently planned local path."""
     plot_local_map(world_map.landmarks)
     plot_path(
-        smooth,
-        start=smooth[0],
-        goal=smooth[-1]
+        path,
+        start=path[0],
+        goal=path[-1]
     )
 
     plt.savefig(
-        PNG_PATH,
+        filename,
         dpi=200,
         bbox_inches="tight"
     )
+    plt.close()
 
-    print(f"Saved plot to: {PNG_PATH}")
-
-    del mirte
-
-
-if __name__ == "__main__":
-    main()
+    print(f"Saved plot to: {filename}")

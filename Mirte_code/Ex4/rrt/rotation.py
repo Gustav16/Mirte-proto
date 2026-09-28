@@ -15,59 +15,143 @@ import matplotlib.pyplot as plt
 import numpy as np
 
 
+import matplotlib.pyplot as plt
+import numpy as np
+
+
 def save_rotation_visualization(R, tvec, offset, marker_id):
-    fig = plt.figure(figsize=(8, 8))
+
+    fig = plt.figure(figsize=(10, 8))
     ax = fig.add_subplot(111, projection="3d")
 
     origin = np.zeros(3)
 
-    # Marker axes in camera frame
-    x_axis = R @ np.array([1.0, 0.0, 0.0])
-    y_axis = R @ np.array([0.0, 1.0, 0.0])
-    z_axis = R @ np.array([0.0, 0.0, 1.0])
+    # -------------------------
+    # Camera coordinate axes
+    # -------------------------
+    axis_length = 0.3
 
-    # Camera axes
-    ax.quiver(*origin, 1, 0, 0, label="Camera X")
-    ax.quiver(*origin, 0, 1, 0, label="Camera Y")
-    ax.quiver(*origin, 0, 0, 1, label="Camera Z")
+    ax.quiver(
+        0, 0, 0,
+        axis_length, 0, 0,
+        color="black",
+        linewidth=2,
+        label="Camera +X"
+    )
 
-    # Marker axes
-    ax.quiver(*origin, *x_axis, label="Marker X")
-    ax.quiver(*origin, *y_axis, label="Marker Y")
-    ax.quiver(*origin, *z_axis, label="Marker Z")
+    ax.quiver(
+        0, 0, 0,
+        0, axis_length, 0,
+        color="gray",
+        linewidth=2,
+        label="Camera +Y"
+    )
 
-    # ArUco marker position
-    ax.scatter(*tvec, s=60, label="ArUco position")
+    ax.quiver(
+        0, 0, 0,
+        0, 0, axis_length,
+        color="black",
+        linewidth=2,
+        linestyle="--",
+        label="Camera +Z"
+    )
 
+    # -------------------------
+    # Marker coordinate axes
+    # -------------------------
+    x_axis = R @ np.array([1., 0., 0.])
+    y_axis = R @ np.array([0., 1., 0.])
+    z_axis = R @ np.array([0., 0., 1.])
+
+    ax.quiver(
+        0, 0, 0,
+        *(axis_length * x_axis),
+        color="red",
+        linewidth=3,
+        label="Marker +X"
+    )
+
+    ax.quiver(
+        0, 0, 0,
+        *(axis_length * y_axis),
+        color="green",
+        linewidth=3,
+        label="Marker +Y"
+    )
+
+    ax.quiver(
+        0, 0, 0,
+        *(axis_length * z_axis),
+        color="blue",
+        linewidth=3,
+        label="Marker +Z"
+    )
+
+    # -------------------------
+    # ArUco position
+    # -------------------------
+    ax.scatter(
+        *tvec,
+        color="purple",
+        s=100,
+        label="ArUco position"
+    )
+
+    # -------------------------
     # Box center
+    # -------------------------
     box_center = tvec + offset
-    ax.scatter(*box_center, s=60, label="Box center")
 
-    # Offset vector
+    ax.scatter(
+        *box_center,
+        color="orange",
+        s=120,
+        label="Box center"
+    )
+
+    # -------------------------
+    # Box depth offset
+    # -------------------------
     ax.quiver(
         *tvec,
         *offset,
+        color="orange",
+        linewidth=4,
         label="Box depth offset"
     )
 
-    ax.set_xlabel("Camera X")
-    ax.set_ylabel("Camera Y")
-    ax.set_zlabel("Camera Z")
+    # -------------------------
+    # Labels
+    # -------------------------
+    ax.text(*tvec, "  ArUco", color="purple")
+    ax.text(*box_center, "  BOX", color="orange")
 
-    ax.set_xlim([-1, 1])
-    ax.set_ylim([-1, 1])
-    ax.set_zlim([-1, 1])
+    ax.set_xlabel("Camera X (right)")
+    ax.set_ylabel("Camera Y (down)")
+    ax.set_zlabel("Camera Z (forward)")
+
+    ax.set_title(f"ArUco Marker {marker_id} Rotation")
+
+    # Equal scale
+    ax.set_xlim([-0.5, 0.5])
+    ax.set_ylim([-0.5, 0.5])
+    ax.set_zlim([-0.5, 0.5])
 
     ax.set_box_aspect([1, 1, 1])
-    ax.set_title(f"ArUco marker {marker_id}")
 
-    ax.legend()
+    ax.legend(loc="upper left")
 
     filename = f"rotation_marker_{marker_id}.png"
-    plt.savefig(filename, dpi=200, bbox_inches="tight")
+
+    plt.savefig(
+        filename,
+        dpi=250,
+        bbox_inches="tight"
+    )
+
     plt.close(fig)
 
-    print(f"Saved {filename}")
+    print(f"Saved: {filename}")
 import time
 
 import os

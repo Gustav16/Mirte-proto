@@ -224,7 +224,7 @@ OBJECT_DEPTH_MM = OBJECT_DEPTH_M * 1000.0
 obstacle_offset_3d_mm = np.array([
     0.0,
     0.0,
-    OBJECT_DEPTH_MM / 2.0
+    -OBJECT_DEPTH_MM / 2.0
 ])
 
 

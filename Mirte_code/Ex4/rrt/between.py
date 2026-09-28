@@ -51,10 +51,6 @@ def find_between_goal(
             f"z = {z:+.3f} m"
         )
 
-    # --------------------------------------------------
-    # Specific requested landmarks
-    # --------------------------------------------------
-
     if target_ids is not None:
         id_a, id_b = target_ids
 
@@ -72,10 +68,6 @@ def find_between_goal(
 
         return goal, (id_a, id_b)
 
-    # --------------------------------------------------
-    # Exactly two landmarks
-    # --------------------------------------------------
-
     ids = sorted(points)
 
     if len(ids) == 2:
@@ -87,12 +79,6 @@ def find_between_goal(
         )
 
         return goal, (id_a, id_b)
-
-    # --------------------------------------------------
-    # More than two landmarks
-    #
-    # Sort landmarks left -> right and examine gaps
-    # --------------------------------------------------
 
     ordered = sorted(
         points.items(),

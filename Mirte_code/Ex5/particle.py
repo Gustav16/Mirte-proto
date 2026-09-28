@@ -64,7 +64,9 @@ def estimate_pose(particles_list):
      
 def move_particle(particle, delta_x, delta_y, delta_theta):
     """Move the particle by (delta_x, delta_y, delta_theta)"""
-    print("particle.py: move_particle not implemented. You should do this.") 
+    particle.x += delta_x
+    particle.y += delta_y
+    particle.theta = np.mod(particle.theta + delta_theta, 2.0*np.pi)
 
 
 def add_uncertainty(particles_list, sigma, sigma_theta):

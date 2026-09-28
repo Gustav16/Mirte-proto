@@ -11,6 +11,7 @@
 #     p_robot = p_camera + p_camera_origin_in_robot
 #
 # Therefore the camera offset is ADDED, not subtracted.
+import time
 
 import os
 import sys
@@ -18,29 +19,25 @@ import cv2
 import numpy as np
 import matplotlib.pyplot as plt
 from matplotlib.patches import Circle
-import time
 
 sys.path.append(
     os.path.join(
         os.path.dirname(__file__),
-        '../../../Mirte/ku_mirte_python'
+        "../../../Mirte/ku_mirte_python"
     )
 )
 
 from ku_mirte import KU_Mirte
 
-time.sleep(1)
 
-
-#program star
-
-LIN_speed = 0.30
-
-#set success dist
-success_distance = 400
-reached_target = False
+# ---------------------------------------------------------------------------
+# Camera / ArUco calibration
+# ---------------------------------------------------------------------------
 
 distortion_coeffs = np.zeros(5)
+
+ARUCO_MARKER_LENGTH_MM = 145
+
 f = 609.9
 fx = f
 fy = f
@@ -49,14 +46,46 @@ cx = 640 / 2
 cy = 480 / 2
 
 intrinsic_matrix = np.array([
-    [fx,  0, cx],
-    [ 0, fy, cy],
-    [ 0,  0,  1]
+    [fx, 0, cx],
+    [0, fy, cy],
+    [0, 0, 1]
 ], dtype=np.float32)
 
-#set values
-arucoMarkerLength = 145
 arucoDict = cv2.aruco.getPredefinedDictionary(cv2.aruco.DICT_6X6_250)
+
+# IMPORTANT:
+# Measure this on the physical robot.
+#
+# Your previous local_map.py used 0.10 m, although its comment said 8 cm.
+# For the first test this is therefore kept at 0.10 m.
+CAMERA_FORWARD_OFFSET = 0.14
+
+# Camera origin position expressed in the robot-center frame.
+# Map convention:
+#   x = right
+#   z = forward
+CAMERA_OFFSET_FROM_ROBOT_CENTER = np.array([
+    0.0,
+    CAMERA_FORWARD_OFFSET
+], dtype=float)
+
+
+# Approximate depth of the ArUco box.
+#
+# IMPORTANT UNIT DETAIL:
+# estimatePoseSingleMarkers() returns tvec in the same unit as the marker
+# length. Since ARUCO_MARKER_LENGTH_MM = 145, tvec is in millimetres.
+# The box-depth offset must therefore ALSO be in millimetres here.
+OBJECT_DEPTH_M = 0.25
+OBJECT_DEPTH_MM = OBJECT_DEPTH_M * 1000.0
+
+# Shift from the ArUco paper plane toward the approximate box center.
+obstacle_offset_3d_mm = np.array([
+    0.0,
+    0.0,
+    OBJECT_DEPTH_MM / 2.0
+])
+
 
 
 #While we havent reached the target
@@ -108,12 +137,11 @@ def get_map_from_mirte(mirte):
             # Camera is CAMERA_FORWARD_OFFSET in front of robot center,
             # therefore a landmark in front of the camera is that much
             # farther from the robot center.
-            landmark_pos = (landmark_camera + camera_offset)
+            landmark_pos = (landmark_camera + CAMERA_OFFSET_FROM_ROBOT_CENTER)
 
             landmark_map.append([landmark_pos,landmark_id])
-            
 
-        return landmark_map, rvecs
+        return landmark_map
 
 mirte = KU_Mirte()
 

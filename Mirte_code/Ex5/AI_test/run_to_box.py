@@ -170,111 +170,90 @@ def goal_towards_one_box(world_map):
     return goal, marker_id
 
 
-def explore_once(mirte, world_map, path_history, drawing_pose):
+def explore_once(
+    mirte,
+    world_map,
+    path_history,
+    drawing_pose,
+):
     """
-    Choose one simple exploration action.
-
-    2+ visible boxes:
-        Try to move towards a safe passage between two boxes.
-
-    1 visible box, or no safe passage:
-        Move a short distance towards the closest box.
-
-    0 visible boxes:
-        Turn 30 degrees and look again.
+    Exploration rule:
+    - 2+ boxes: plan and follow a complete route to a safe passage.
+    - 0 or 1 box: rotate in place and scan again.
     """
-    count = len(world_map.landmarks)
-
-    if count >= 2:
-        passage_goal, pair = find_safe_passage(
-            world_map
+    if len(world_map.landmarks) < 2:
+        print(
+            "Fewer than two usable boxes are visible. "
+            "Turning 30 degrees and scanning again."
         )
-
-        if passage_goal is not None:
-            # Move towards the passage in short steps.
-            goal = limit_goal_distance(
-                passage_goal,
-                EXPLORE_DISTANCE
-            )
-
-            print(
-                f"Exploring towards passage between "
-                f"ID {pair[0]} and ID {pair[1]}."
-            )
-
-            path = plan_path(
-                world_map,
-                goal
-            )
-
-            if path is not None:
-                global_segment = transform_local_path(
-                    path,
-                    drawing_pose
-                )
-                path_history.extend(global_segment[1:])
-                drawing_pose[:] = update_drawing_pose(
-                    drawing_pose,
-                    path
-                )
-
-                drive_path(
-                    mirte,
-                    world_map,
-                    path
-                )
-                return True
-
-    if count >= 1:
-        goal, marker_id = goal_towards_one_box(
-            world_map
+        mirte.drive(
+            0.0,
+            SEARCH_SPEED,
+            SEARCH_ANGLE / SEARCH_SPEED,
+            blocking=True,
         )
+        mirte.stop()
+        drawing_pose[2] += SEARCH_ANGLE
+        return True
 
-        if goal is not None:
-            print(
-                f"Exploring towards visible ID {marker_id}."
-            )
+    goal, pair = find_safe_passage(world_map)
 
-            path = plan_path(
-                world_map,
-                goal
-            )
+    if goal is None:
+        print(
+            "No safe passage between the visible boxes. "
+            "Turning 30 degrees and scanning again."
+        )
+        mirte.drive(
+            0.0,
+            SEARCH_SPEED,
+            SEARCH_ANGLE / SEARCH_SPEED,
+            blocking=True,
+        )
+        mirte.stop()
+        drawing_pose[2] += SEARCH_ANGLE
+        return True
 
-            if path is not None:
-                global_segment = transform_local_path(
-                    path,
-                    drawing_pose
-                )
-                path_history.extend(global_segment[1:])
-                drawing_pose[:] = update_drawing_pose(
-                    drawing_pose,
-                    path
-                )
-
-                drive_path(
-                    mirte,
-                    world_map,
-                    path
-                )
-                return True
-
-        # A box is visible but there is no safe forward move.
-        # Turn to search for another view.
-        print("No safe exploration path. Turning 30 degrees.")
-
-    else:
-        print("No ArUco boxes visible. Turning 30 degrees.")
-
-    scaler = 1.05
-    mirte.drive(
-        0.0,
-        SEARCH_SPEED,
-        scaler * SEARCH_ANGLE / SEARCH_SPEED,
+    id_a, id_b = pair
+    print(
+        f"Planning complete route to passage "
+        f"between ID {id_a} and ID {id_b}."
     )
 
-    time.sleep(0.3)
-    return True
+    path = plan_path(world_map, goal)
 
+    if path is None:
+        print(
+            "Could not find a safe route to the passage. "
+            "Turning and scanning again."
+        )
+        mirte.drive(
+            0.0,
+            SEARCH_SPEED,
+            SEARCH_ANGLE / SEARCH_SPEED,
+            blocking=True,
+        )
+        mirte.stop()
+        drawing_pose[2] += SEARCH_ANGLE
+        return True
+
+    global_segment = transform_local_path(path, drawing_pose)
+    path_history.extend(global_segment[1:])
+    update_drawing_pose(drawing_pose, path)
+
+    print(
+        "Following complete route to passage. "
+        "Next scan happens after reaching it."
+    )
+
+    reached = drive_path(mirte, world_map, path)
+
+    if reached is False:
+        print(
+            "Route stopped early by safety system. "
+            "Taking a new scan."
+        )
+
+    return True
 
 def main():
     try:

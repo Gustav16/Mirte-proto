@@ -46,6 +46,8 @@ def follow_path(
     control_period=0.25,
     heading_gain=1.8,
     max_time=30.0,
+    sonar_stop_distance=0.30,
+    sonar_slow_distance=0.45,
 ):
     """
     Smooth path follower.
@@ -91,7 +93,7 @@ def follow_path(
             if goal_distance <= goal_tolerance:
                 mirte.stop()
                 print("Goal reached.")
-                return
+                return True
 
             target = lookahead_point(
                 path,
@@ -106,6 +108,23 @@ def follow_path(
             heading_error = wrap_angle(
                 target_theta - pose[2]
             )
+
+            # Physical backup safety using the two front sonars.
+            # This is independent of RRT/MCL.
+            try:
+                sonar = mirte.sonar
+                front_left = float(sonar["front_left"])
+                front_right = float(sonar["front_right"])
+                front_clearance = min(front_left, front_right)
+
+                if front_clearance <= sonar_stop_distance:
+                    mirte.stop()
+                    print(
+                        f"SAFETY STOP: obstacle {front_clearance:.2f} m ahead."
+                    )
+                    return False
+            except Exception:
+                front_clearance = None
 
             # Proportional steering.
             angular = heading_gain * heading_error
@@ -125,9 +144,16 @@ def follow_path(
                 1.0 - 0.55 * turn_amount
             )
 
+            # Slow down before the sonar safety-stop distance.
+            if (
+                front_clearance is not None
+                and front_clearance <= sonar_slow_distance
+            ):
+                speed = min(speed, 0.16)
+
             # Very close to the goal: approach more slowly.
             if goal_distance < 0.20:
-                speed = min(speed, 0.18)
+                speed = min(speed, 0.16)
 
             # Continuous command.
             # duration=None means keep driving until a new command arrives.
@@ -184,6 +210,7 @@ def follow_path(
 
         mirte.stop()
         print("Stopped because path-following timeout was reached.")
+        return False
 
     except BaseException:
         mirte.stop()

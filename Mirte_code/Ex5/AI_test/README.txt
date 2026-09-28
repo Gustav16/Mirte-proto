@@ -75,3 +75,13 @@ V3 CHANGES
 - ArUco confirmation:
   local planning maps use two camera frames and keep only IDs visible in both.
   This helps reject one-frame false detections.
+
+V4 ROUTE / SCAN LOGIC
+- Target visible: plan and follow route to its safe stand-off point.
+- Target hidden + at least two boxes visible: choose a safe passage,
+  plan the complete route and follow it all the way before scanning again.
+- Zero or one box visible: never drive toward the single box.
+  Turn 30 degrees in place and scan again.
+- No safe passage: turn and scan again.
+- Front sonar is a backup safety layer during path following:
+  slow below 0.45 m and stop below 0.30 m.

@@ -406,7 +406,7 @@ def drive_path(mirte, world_map, path):
             world_map
         )
 
-    follow_path(
+    return follow_path(
         path,
         mirte,
         localizer=localizer,

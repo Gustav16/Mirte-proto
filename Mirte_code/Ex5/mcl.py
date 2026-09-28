@@ -1,5 +1,6 @@
 import numpy as np
-import particle
+import particle as pcl
+import random_numbers as rn
 
 class MCL:
     "MCL (monte-carlo localization) class"
@@ -89,14 +90,17 @@ class MCL:
         d_rot_1 = u[1]
         d_trans = u[0]
         d_rot_2 = 0 #we dont rotate after first rotation and transportation, but there may be noise
+
         d_rot_1_est = d_rot_1 + self.sample(self.alpha1*(d_rot_1**2)+ self.alpha2*(d_trans**2))
         d_trans_est = d_trans + self.sample(self.alpha3*(d_trans**2) + self.alpha4*(d_rot_1**2))
         d_rot_2_est = d_rot_2 + self.sample(self.alpha2*(d_trans**2))
-        theta_new = x_last[2] + u[1]
-        x_prime = x_last[0] + d_trans_est*np.cos(theta_new + d_rot_1_est)
-        y_prime = x_last[1] + d_trans_est*np.sin(theta_new + d_rot_1_est)
-        theta_prime = x_last[2] + d_rot_1_est + d_rot_2_est
-        return np.array([x_prime, y_prime, theta_prime])
+
+        theta_new = x_last.getTheta() + u[1]
+        x_prime = x_last.getX() + d_trans_est*np.cos(theta_new + d_rot_1_est)
+        y_prime = x_last.getY() + d_trans_est*np.sin(theta_new + d_rot_1_est)
+        theta_prime = np.mod(x_last.getTheta() + d_rot_1_est + d_rot_2_est, 2.0 * np.pi) 
+        
+        return pcl.Particle(x_prime, y_prime, theta_prime, pcl.getWeight())
 
     def is_state_possible(self, x_t, m):
         return not m.in_collision((x_t.getX(), x_t.getY()))
@@ -129,5 +133,5 @@ class MCL:
 
     def estimate_pose(self):
         "return estimate of pose as everage of particles"
-        return particle.Particle.estimate_pose(self.particles)
+        return pcl.Particle.estimate_pose(self.particles)
     

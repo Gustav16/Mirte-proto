@@ -201,6 +201,7 @@ sys.path.append(
 
 from ku_mirte import KU_Mirte
 import grid_occ, robot_models, local_map
+from between import find_between_goal
 from visualize_local_map import plot_local_map, plot_path, PNG_PATH
 
 
@@ -264,23 +265,17 @@ def main():
 
 
     print('landmark amount:', len(map.landmarks))
-    #go betweem 2 landmarks
-    landmark_count = len(map.landmarks)
-    # if landmark_count > 1:
-    #     point_a, _ = map.landmarks[0]
-    #     point_b, _ = map.landmarks[1]
+    #go between 2 landmarks using the method from between.py
+    between_goal, gate_ids = find_between_goal(map)
 
-    #     x_a, y_a = point_a
-    #     x_b, y_b = point_b
+    if between_goal is None:
+        print('could not find a valid goal between landmarks')
+        del mirte
+        return
 
-    #     goal = np.array([
-    #         (x_a + x_b) / 2,
-    #         (y_a + y_b) / 2
-    #     ])
-    # else:
-    #     print('could not find 2 ids')
-    #     del mirte
-    #     return
+    goal = between_goal
+    print(f'using passage between IDs {gate_ids[0]} and {gate_ids[1]}')
+    print(f'goal: x={goal[0]:+.3f}, y={goal[1]:+.3f}')
         
     
     rrt = RRT(

@@ -252,6 +252,37 @@ def Execute_path(path, mirte):
         current_pose[2] = target_theta
 
 
+def simplify_path(path, rrt):
+    # rrt.planning() returnerer ruten fra mål til start, så den vendes,
+    # og vi arbejder fra start mod mål
+    points = [np.asarray(p, dtype=float) for p in reversed(path)]
+
+    simplified = [points[0]]      # startpunktet er altid med
+    anchor = 0                    # indeks for det punkt, vi står i nu
+    last = len(points) - 1        # indeks for målet
+
+    while anchor < last:
+        from_node = RRT.Node(points[anchor])
+
+        # Søg bagfra: find det FJERNESTE punkt, der kan nås i en lige linje
+        for i in range(last, anchor, -1):
+            new_node = rrt.steer(from_node, RRT.Node(points[i]))  # ingen længdegrænse
+            if rrt.check_collision_free(new_node):
+                simplified.append(points[i])
+                anchor = i
+                break
+        else:
+            # Burde ikke ske (nabopunktet er altid frit), men undgår en uendelig løkke
+            anchor += 1
+            simplified.append(points[anchor])
+
+    # Tilbage til samme format som før (mål først), så resten af koden virker uændret
+    simplified.reverse()
+    return simplified
+
+
+        
+
 def main():
     path_res = 0.1 #10 cm
     mirte = KU_Mirte()
@@ -318,14 +349,16 @@ def main():
         else:
             print("found path!!")
             print(path)
-
+            simplified_path = simplify_path(path, rrt)
+            print(simplified_path)
+            # CALL simplified path
             #execute path
-            Execute_path(path, mirte)
+            Execute_path(simplified_path, mirte)
 
             # Draw local map + planned route in the same graph
             # (generate_final_course returns the path goal-first)
             plot_local_map(map.landmarks)
-            plot_path(path, start=path[-1], goal=path[0])
+            plot_path(simplified_path, start=simplified_path[-1], goal=simplified_path[0])
             plt.savefig(PNG_PATH, dpi=200, bbox_inches="tight")
             print(f"Saved plot to: {PNG_PATH}")
             plt.pause(0.01)  # Need for Mac

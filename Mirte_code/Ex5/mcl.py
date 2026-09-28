@@ -35,13 +35,6 @@ class MCL:
         inside = (z >= low) & (z <= high)
         return np.where(inside, 1.0 / width, 0.0)
  
- 
-    def exponential_pdf(self, z, z_true, lam):
-        """Exp(z | lam), truncated/normalized on [0, z_true]. Used for p_short."""
-        z = np.asarray(z, dtype=float)
-        eta = 1.0 / (1.0 - np.exp(-lam * z_true))  # normalizer so it integrates to 1 on [0, z_true]
-        inside = (z >= 0) & (z <= z_true)
-        return np.where(inside, eta * lam * np.exp(-lam * z), 0.0)
 
     def true_distance_to_landmark(self, particles, landmark_xy):
         """
@@ -49,10 +42,11 @@ class MCL:
         landmark_xy: (2,) array [lx, ly]
         returns: (N,) array of Euclidean distances from each particle to the landmark
         """
-        particles = np.asarray(particles, dtype=float)
-        dx = landmark_xy[0] - particles.getX()
-        dy = landmark_xy[1] - particles.getY()
-        return np.sqrt(dx ** 2 + dy ** 2)
+        delta = np.array([
+        landmark_xy[0] - particles.getX(),
+        landmark_xy[1] - particles.getY()])
+
+        return np.linalg.norm(delta)
  
  
     def observation_model_aruco(self,

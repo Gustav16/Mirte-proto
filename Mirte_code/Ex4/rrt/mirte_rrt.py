@@ -296,17 +296,17 @@ def main():
 
 
     print('landmark amount:', len(map.landmarks))
-    #go between 2 landmarks using the method from between.py
-    between_goal, gate_ids = find_between_goal(map)
+    # #go between 2 landmarks using the method from between.py
+    # between_goal, gate_ids = find_between_goal(map)
 
-    if between_goal is None:
-        print('could not find a valid goal between landmarks')
-        del mirte
-        return
+    # if between_goal is None:
+    #     print('could not find a valid goal between landmarks')
+    #     del mirte
+    #     return
 
-    goal = between_goal
-    print(f'using passage between IDs {gate_ids[0]} and {gate_ids[1]}')
-    print(f'goal: x={goal[0]:+.3f}, y={goal[1]:+.3f}')
+    # goal = between_goal
+    # print(f'using passage between IDs {gate_ids[0]} and {gate_ids[1]}')
+    # print(f'goal: x={goal[0]:+.3f}, y={goal[1]:+.3f}')
         
     
     rrt = RRT(

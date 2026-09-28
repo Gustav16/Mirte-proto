@@ -2,15 +2,12 @@
 #
 # Local landmark map for MIRTE.
 #
-# Main change compared with the current local_map.py:
-# The ArUco measurement is transformed from the camera origin to the
-# ROBOT CENTER. If the camera is mounted CAMERA_FORWARD_OFFSET metres
-# in front of the robot center, a landmark in front of the camera is
-# CAMERA_FORWARD_OFFSET farther away from the robot center:
+# ArUco tvec is used directly for the landmark position.
+# We deliberately do NOT rotate a box-depth offset using rvec, because
+# differences/noise in the estimated marker orientation can move otherwise
+# aligned boxes differently in both x and z.
 #
-#     p_robot = p_camera + p_camera_origin_in_robot
-#
-# Therefore the camera offset is ADDED, not subtracted.
+# The camera position is then translated to the ROBOT CENTER frame.
 
 import os
 import sys
@@ -50,16 +47,19 @@ intrinsic_matrix = np.array([
     [0, 0, 1]
 ], dtype=np.float32)
 
-arucoDict = cv2.aruco.getPredefinedDictionary(cv2.aruco.DICT_6X6_250)
+arucoDict = cv2.aruco.getPredefinedDictionary(
+    cv2.aruco.DICT_6X6_250
+)
 
-# IMPORTANT:
-# Measure this on the physical robot.
-#
-# Your previous local_map.py used 0.10 m, although its comment said 8 cm.
-# For the first test this is therefore kept at 0.10 m.
+
+# ---------------------------------------------------------------------------
+# Camera position relative to robot center
+# ---------------------------------------------------------------------------
+
+# Camera is approximately 14 cm in front of the robot center.
+# Measure this value on the physical robot if greater precision is needed.
 CAMERA_FORWARD_OFFSET = 0.14
 
-# Camera origin position expressed in the robot-center frame.
 # Map convention:
 #   x = right
 #   z = forward
@@ -67,23 +67,6 @@ CAMERA_OFFSET_FROM_ROBOT_CENTER = np.array([
     0.0,
     CAMERA_FORWARD_OFFSET
 ], dtype=float)
-
-
-# Approximate depth of the ArUco box.
-#
-# IMPORTANT UNIT DETAIL:
-# estimatePoseSingleMarkers() returns tvec in the same unit as the marker
-# length. Since ARUCO_MARKER_LENGTH_MM = 145, tvec is in millimetres.
-# The box-depth offset must therefore ALSO be in millimetres here.
-OBJECT_DEPTH_M = 0.25
-OBJECT_DEPTH_MM = OBJECT_DEPTH_M * 1000.0
-
-# Shift from the ArUco paper plane toward the approximate box center.
-obstacle_offset_3d_mm = np.array([
-    0.0,
-    0.0,
-    OBJECT_DEPTH_MM / 2.0
-])
 
 
 class LocalMap:
@@ -138,7 +121,7 @@ class LocalMap:
 
             landmark_radius + mirte_radius
 
-        to a landmark center.
+        to a landmark.
         """
         pos = np.asarray(pos, dtype=float)
 
@@ -151,8 +134,8 @@ class LocalMap:
         for landmark, landmark_id in self.landmarks:
             landmark = np.asarray(landmark, dtype=float)
 
-            #use squrared distance as it is faster
-            if np.sum((pos - landmark)**2) <= clearance**2:
+            # Squared distance avoids an unnecessary square root.
+            if np.sum((pos - landmark) ** 2) <= clearance ** 2:
                 return 1
 
         return 0
@@ -161,21 +144,37 @@ class LocalMap:
         """
         Take one camera frame and detect all unique ArUco landmarks.
 
-        Returned positions are expressed relative to the ROBOT CENTER.
+        OpenCV's tvec points from the camera origin to the detected
+        ArUco marker. Its units are the same as ARUCO_MARKER_LENGTH_MM,
+        so the returned tvec values are in millimetres.
+
+        We use tvec directly instead of applying an rvec-dependent
+        box-center correction. The resulting 2D position is then shifted
+        from the camera frame to the robot-center frame.
         """
         landmark_map = []
 
         img = mirte.get_image_compressed()
 
         if img is None:
+            print("No camera image received.")
             return landmark_map
 
-        corners, ids, _ = cv2.aruco.detectMarkers(img,arucoDict)
+        corners, ids, _ = cv2.aruco.detectMarkers(
+            img,
+            arucoDict
+        )
 
         if ids is None:
+            print("No ArUco landmarks detected.")
             return landmark_map
 
-        rvecs, tvecs, _ = cv2.aruco.estimatePoseSingleMarkers(corners, ARUCO_MARKER_LENGTH_MM, intrinsic_matrix, distortion_coeffs)
+        rvecs, tvecs, _ = cv2.aruco.estimatePoseSingleMarkers(
+            corners,
+            ARUCO_MARKER_LENGTH_MM,
+            intrinsic_matrix,
+            distortion_coeffs
+        )
 
         seen_ids = set()
 
@@ -187,24 +186,40 @@ class LocalMap:
 
             seen_ids.add(landmark_id)
 
-            # Rotation of the marker relative to the camera.
-            R, _ = cv2.Rodrigues(rvecs[i][0])
+            # IMPORTANT:
+            # Use the raw tvec directly.
+            #
+            # tvec = [x, y, z] from camera origin to ArUco marker.
+            # Because marker length is specified in mm, tvec is also in mm.
+            x_mm, y_mm, z_mm = tvecs[i][0]
 
-            # Estimate approximate center of the physical box.
-            center_camera_mm = (tvecs[i][0] + R @ obstacle_offset_3d_mm)
-
-            x_mm, y_mm, z_mm = center_camera_mm
-
-            # Camera-frame 2D floor position in metres.
-            landmark_camera = np.array([x_mm / 1000.0,z_mm / 1000.0])
+            # Convert camera-frame floor coordinates from mm to metres.
+            landmark_camera = np.array([
+                x_mm / 1000.0,
+                z_mm / 1000.0
+            ])
 
             # Camera -> robot-center transform.
-            # Camera is CAMERA_FORWARD_OFFSET in front of robot center,
-            # therefore a landmark in front of the camera is that much
-            # farther from the robot center.
-            landmark_pos = (landmark_camera + self.camera_offset)
+            #
+            # The camera is CAMERA_FORWARD_OFFSET metres in front of the
+            # robot center, so the marker is that much farther from the
+            # robot center along the forward z direction.
+            landmark_pos = landmark_camera + self.camera_offset
 
-            landmark_map.append([landmark_pos,landmark_id])
+            # Debug output. This is useful for checking whether two boxes
+            # placed at the same physical depth get approximately equal z.
+            print(
+                f"ID {landmark_id:3d}: "
+                f"raw camera x = {x_mm / 1000.0:+.3f} m, "
+                f"raw camera z = {z_mm / 1000.0:+.3f} m, "
+                f"robot x = {landmark_pos[0]:+.3f} m, "
+                f"robot z = {landmark_pos[1]:+.3f} m"
+            )
+
+            landmark_map.append([
+                landmark_pos,
+                landmark_id
+            ])
 
         return landmark_map
 
@@ -214,21 +229,46 @@ class LocalMap:
         """
         ax = plt.gca()
 
-        clearance = (self.landmark_radius + self.mirte_radius)
+        clearance = self.landmark_radius + self.mirte_radius
 
         for landmark, landmark_id in self.landmarks:
             x, z = landmark
 
-            ax.add_patch(Circle((x, z), clearance, fill=False))
+            ax.add_patch(
+                Circle(
+                    (x, z),
+                    clearance,
+                    fill=False
+                )
+            )
+
             ax.scatter(x, z)
-            ax.text(x + 0.02, z + 0.02, f"ID {landmark_id}")
+            ax.text(
+                x + 0.02,
+                z + 0.02,
+                f"ID {landmark_id}"
+            )
 
-        ax.scatter(0.0, 0.0, marker="^")
+        # Robot center.
+        ax.scatter(
+            0.0,
+            0.0,
+            marker="^"
+        )
 
-        ax.set_xlim(self.map_area[0][0], self.map_area[1][0])
+        ax.set_xlim(
+            self.map_area[0][0],
+            self.map_area[1][0]
+        )
 
-        ax.set_ylim(self.map_area[0][1], self.map_area[1][1])
+        ax.set_ylim(
+            self.map_area[0][1],
+            self.map_area[1][1]
+        )
 
-        ax.set_aspect("equal", adjustable="box")
+        ax.set_aspect(
+            "equal",
+            adjustable="box"
+        )
 
         ax.grid(True)

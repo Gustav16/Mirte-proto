@@ -349,14 +349,16 @@ def main():
         else:
             print("found path!!")
             print(path)
+            simplified_path = simplify_path(path, rrt)
+            print(simplified_path)
             # CALL simplified path
             #execute path
-            Execute_path(path, mirte)
+            Execute_path(simplified_path, mirte)
 
             # Draw local map + planned route in the same graph
             # (generate_final_course returns the path goal-first)
             plot_local_map(map.landmarks)
-            plot_path(path, start=path[-1], goal=path[0])
+            plot_path(simplified_path, start=simplified_path[-1], goal=simplified_path[0])
             plt.savefig(PNG_PATH, dpi=200, bbox_inches="tight")
             print(f"Saved plot to: {PNG_PATH}")
             plt.pause(0.01)  # Need for Mac

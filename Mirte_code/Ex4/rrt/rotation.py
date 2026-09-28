@@ -32,9 +32,7 @@ from ku_mirte import KU_Mirte
 time.sleep(1)
 
 
-#program start
-
-mirte = KU_Mirte()
+#program star
 
 LIN_speed = 0.30
 

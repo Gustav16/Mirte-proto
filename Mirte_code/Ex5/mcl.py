@@ -1,4 +1,6 @@
 import numpy as np
+import particle
+
 class MCL:
     "MCL (monte-carlo localization) class"
     def __init__(self, 
@@ -47,8 +49,8 @@ class MCL:
         returns: (N,) array of Euclidean distances from each particle to the landmark
         """
         particles = np.asarray(particles, dtype=float)
-        dx = landmark_xy[0] - particles[:, 0]
-        dy = landmark_xy[1] - particles[:, 1]
+        dx = landmark_xy[0] - particles.getX()
+        dy = landmark_xy[1] - particles.getY()
         return np.sqrt(dx ** 2 + dy ** 2)
  
  
@@ -97,7 +99,7 @@ class MCL:
         return np.array([x_prime, y_prime, theta_prime])
 
     def is_state_possible(self, x_t, m):
-        return not m.in_collision(x_t[:2])
+        return not m.in_collision((x_t.getX(), x_t.getY()))
     
     def sample_motion_model_with_map(self, u, x_last, m):
         "sampling with map"
@@ -109,23 +111,23 @@ class MCL:
         return x_t
 
     def measurement_model(self ,z, x, m):
-        return 1 # self.observation_model_aruco not finished
+        return  self.observation_model_aruco()
 
     def mcl(self, u, z, m):
         "MCL function"
         particles = self.sample_motion_model_with_map(u, self.particles, m)
-        weights = self.measurement_model(z, particles, m)
-        weights = np.cumsum(weights /np.sum(weights)) #smooth weights
+        particles.setWeight = self.measurement_model(z, particles, m)
+        particles.setWeight = np.cumsum(particles.getWeight() /np.sum(particles.getWeight())) #smooth weights
 
         #redraw samples
         picks = np.random.rand(self.M)
-        indices = np.searchsorted(weights, picks) #use binsearch to get indices
+        indices = np.searchsorted(particles.getWeight, picks) #use binsearch to get indices
 
-        #return new belief distribution
+        #set new belief distribution
         self.particles = particles[indices]
+        return
 
     def estimate_pose(self):
         "return estimate of pose as everage of particles"
-        return np.mean(self.particles)
-
+        return particle.Particle.estimate_pose(self.particles)
     

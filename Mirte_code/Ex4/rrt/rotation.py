@@ -141,7 +141,7 @@ def get_map_from_mirte(mirte):
 
             landmark_map.append([landmark_pos,landmark_id])
 
-        return landmark_map
+        return landmark_map, rvecs
 
 mirte = KU_Mirte()
 

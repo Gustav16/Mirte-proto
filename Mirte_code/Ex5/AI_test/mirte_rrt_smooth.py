@@ -1,23 +1,27 @@
-"""
+# Shared RRT, mapping and driving functions for MIRTE.
 
-Path planning with Randomized Rapidly-Exploring Random Trees (RRT)
-
-Adapted from 
-https://github.com/AtsushiSakai/PythonRobotics/blob/master/PathPlanning/RRT/rrt.py
-"""
-
-import numpy as np
-import matplotlib.pyplot as plt
-#from matplotlib.animation import FFMpegWriter
-import numpy as np
-from robot_models import RobotModel
-
-import cv2 # Import the OpenCV library
-import time
-
-from pprint import *
-import sys
+import math
 import os
+import sys
+
+import matplotlib.pyplot as plt
+import numpy as np
+
+sys.path.append(
+    os.path.join(
+        os.path.dirname(__file__),
+        "../../../Mirte/ku_mirte_python"
+    )
+)
+
+import local_map
+import robot_models
+
+from mcl import MCL
+from path_follower import follow_path
+from path_smoothing import smooth_path
+from visualize_local_map import plot_local_map, plot_path
+
 
 class RRT:
     """
@@ -192,177 +196,125 @@ class RRT:
                 return False
         return True
 
-sys.path.append(
-    os.path.join(
-        os.path.dirname(__file__),
-        '../../../Mirte/ku_mirte_python'
+
+def make_map(mirte):
+    """Take one camera frame and make a local landmark map."""
+    world_map = local_map.LocalMap(
+        low=(-1.5, 0.0),
+        high=(1.5, 3.0)
     )
-)
-
-from ku_mirte import KU_Mirte
-import grid_occ, robot_models, local_map
-from between import find_between_goal
-from visualize_local_map import plot_local_map, plot_path, PNG_PATH
+    world_map.update(mirte)
+    return world_map
 
 
-def Execute_path(path, mirte):
-    path.reverse()
-    current_pose = np.array([0.0, 0.0, 0.0])
-    linear_offset = -0.0355
+def get_aruco_observations(mirte, sensor_map):
+    """
+    Take a fresh camera measurement.
 
-    linear_speed = 0.3   # m/s
-    angular_speed = 0.7   # rad/s
+    Returns:
+        [(marker_id, distance, bearing), ...]
+    """
+    detected = sensor_map.get_map_from_mirte(mirte)
+    observations = []
 
-    for point in path[1:]:
-        dx = point[0] - current_pose[0]
-        dy = point[1] - current_pose[1]
+    for position, marker_id in detected:
+        x, z = np.asarray(position, dtype=float)
 
-        distance = np.linalg.norm([dx, dy])
-
-        if distance <= 1e-6:
-            continue
-
-        # Direction towards next point
-        target_theta = np.arctan2(-dx, dy)
-
-        # Required rotation
-        dtheta = target_theta - current_pose[2]
-        dtheta = np.arctan2(np.sin(dtheta), np.cos(dtheta))
-
-        # Rotate at fixed angular speed
-        if abs(dtheta) > 1e-6:
-            scaler = 1.05 if dtheta > 0 else 1.10
-
-            mirte.drive(
-                0.0,
-                np.sign(dtheta) * angular_speed,
-                scaler * abs(dtheta) / angular_speed
+        observations.append(
+            (
+                int(marker_id),
+                float(math.hypot(x, z)),
+                float(math.atan2(-x, z)),
             )
-
-        # Drive at fixed linear speed
-        mirte.drive(
-            linear_speed,
-            linear_offset,
-            distance / linear_speed
         )
 
-        # Update estimated pose
-        current_pose[0] = point[0]
-        current_pose[1] = point[1]
-        current_pose[2] = target_theta
+    return observations
 
 
-def simplify_path(path, rrt):
-    # rrt.planning() returnerer ruten fra mål til start, så den vendes,
-    # og vi arbejder fra start mod mål
-    points = [np.asarray(p, dtype=float) for p in reversed(path)]
+def plan_path(world_map, goal):
+    """Plan and simplify a local path from [0, 0] to goal."""
+    goal = np.asarray(goal, dtype=float)
 
-    simplified = [points[0]]      # startpunktet er altid med
-    anchor = 0                    # indeks for det punkt, vi står i nu
-    last = len(points) - 1        # indeks for målet
+    if np.linalg.norm(goal) < 0.03:
+        return [np.array([0.0, 0.0]), goal]
 
-    while anchor < last:
-        from_node = RRT.Node(points[anchor])
+    path_resolution = 0.10
 
-        # Søg bagfra: find det FJERNESTE punkt, der kan nås i en lige linje
-        for i in range(last, anchor, -1):
-            new_node = rrt.steer(from_node, RRT.Node(points[i]))  # ingen længdegrænse
-            if rrt.check_collision_free(new_node):
-                simplified.append(points[i])
-                anchor = i
-                break
-        else:
-            # Burde ikke ske (nabopunktet er altid frit), men undgår en uendelig løkke
-            anchor += 1
-            simplified.append(points[anchor])
+    robot = robot_models.PointMassModel(
+        ctrl_range=[-path_resolution, path_resolution]
+    )
 
-    # Tilbage til samme format som før (mål først), så resten af koden virker uændret
-    simplified.reverse()
-    return simplified
-
-
-        
-
-def main():
-    path_res = 0.1 #10 cm
-    mirte = KU_Mirte()
-    time.sleep(1)  # wait for camera to setup
-    map = local_map.LocalMap(low=(-1,0), high=(1,2))
-    map.update(mirte)
-    robot = robot_models.PointMassModel(ctrl_range=[-path_res, path_res])
-
-    #standard goal destination
-    goal = [0, 1.9]
-
-
-    print('landmark amount:', len(map.landmarks))
-    #go between 2 landmarks using the method from between.py
-    between_goal, gate_ids = find_between_goal(map)
-
-    if between_goal is None:
-        print('could not find a valid goal between landmarks')
-        del mirte
-        return
-
-    goal = between_goal
-    print(f'using passage between IDs {gate_ids[0]} and {gate_ids[1]}')
-    print(f'goal: x={goal[0]:+.3f}, y={goal[1]:+.3f}')
-        
-    
     rrt = RRT(
-        start=[0, 0],
+        start=[0.0, 0.0],
         goal=goal,
         robot_model=robot,
-        map=map,
-        expand_dis=0.4, #0.4 meters
-        path_resolution=path_res, #10 cm
+        map=world_map,
+        expand_dis=0.40,
+        path_resolution=path_resolution,
+        max_iter=1500,
+    )
+
+    path = rrt.planning(
+        animation=False,
+        writer=None
+    )
+
+    if path is None:
+        return None
+
+    # RRT returns goal -> start.
+    path = list(reversed(path))
+
+    return smooth_path(
+        path,
+        world_map,
+        spacing=0.05
+    )
+
+
+def drive_path(mirte, world_map, path):
+    """
+    Follow one local path.
+
+    A fresh MCL instance is used for this local movement.
+    After the movement, exploration takes a new camera map and can plan again.
+    """
+    localizer = MCL(
+        world_map,
+        number_of_particles=300
+    )
+
+    fixed_landmarks = list(world_map.landmarks)
+
+    def observations():
+        return get_aruco_observations(
+            mirte,
+            world_map
         )
-    
-    show_animation = False
-    metadata = dict(title="RRT Test")
-    #writer = FFMpegWriter(fps=15, metadata=metadata)
-    writer = None
-    fig = plt.figure()
-    if writer is not None:
-        with writer.saving(fig, "rrt_test.mp4", 100):
-            path = rrt.planning(animation=show_animation, writer=writer)
 
-            if path is None:
-                print("Cannot find path")
-            else:
-                print("found path!!")
+    follow_path(
+        path,
+        mirte,
+        localizer=localizer,
+        get_observations=observations,
+        landmarks=fixed_landmarks,
+    )
 
-                # Draw final path
-                if show_animation:
-                    rrt.draw_graph()
-                    plt.plot([x for (x, y) in path], [y for (x, y) in path], '-r')
-                    plt.grid(True)
-                    plt.pause(0.01)  # Need for Mac
-                    plt.show()
-                    writer.grab_frame()
-    else:
-        #do not save videos
-        path = rrt.planning(animation=show_animation, writer=writer)
 
-        if path is None:
-            print("Cannot find path")
-        else:
-            print("found path!!")
-            print(path)
-            # CALL simplified path
-            #execute path
-            Execute_path(path, mirte)
+def save_path_plot(world_map, path, filename):
+    """Save the most recently planned local path."""
+    plot_local_map(world_map.landmarks)
+    plot_path(
+        path,
+        start=path[0],
+        goal=path[-1]
+    )
 
-            # Draw local map + planned route in the same graph
-            # (generate_final_course returns the path goal-first)
-            plot_local_map(map.landmarks)
-            plot_path(path, start=path[-1], goal=path[0])
-            plt.savefig(PNG_PATH, dpi=200, bbox_inches="tight")
-            print(f"Saved plot to: {PNG_PATH}")
-            plt.pause(0.01)  # Need for Mac
+    plt.savefig(
+        filename,
+        dpi=200,
+        bbox_inches="tight"
+    )
+    plt.close()
 
-            
-    del mirte
-
-if __name__ == '__main__':
-    main()
+    print(f"Saved plot to: {filename}")

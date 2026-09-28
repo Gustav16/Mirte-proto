@@ -11,6 +11,63 @@
 #     p_robot = p_camera + p_camera_origin_in_robot
 #
 # Therefore the camera offset is ADDED, not subtracted.
+import matplotlib.pyplot as plt
+import numpy as np
+
+
+def save_rotation_visualization(R, tvec, offset, marker_id):
+    fig = plt.figure(figsize=(8, 8))
+    ax = fig.add_subplot(111, projection="3d")
+
+    origin = np.zeros(3)
+
+    # Marker axes in camera frame
+    x_axis = R @ np.array([1.0, 0.0, 0.0])
+    y_axis = R @ np.array([0.0, 1.0, 0.0])
+    z_axis = R @ np.array([0.0, 0.0, 1.0])
+
+    # Camera axes
+    ax.quiver(*origin, 1, 0, 0, label="Camera X")
+    ax.quiver(*origin, 0, 1, 0, label="Camera Y")
+    ax.quiver(*origin, 0, 0, 1, label="Camera Z")
+
+    # Marker axes
+    ax.quiver(*origin, *x_axis, label="Marker X")
+    ax.quiver(*origin, *y_axis, label="Marker Y")
+    ax.quiver(*origin, *z_axis, label="Marker Z")
+
+    # ArUco marker position
+    ax.scatter(*tvec, s=60, label="ArUco position")
+
+    # Box center
+    box_center = tvec + offset
+    ax.scatter(*box_center, s=60, label="Box center")
+
+    # Offset vector
+    ax.quiver(
+        *tvec,
+        *offset,
+        label="Box depth offset"
+    )
+
+    ax.set_xlabel("Camera X")
+    ax.set_ylabel("Camera Y")
+    ax.set_zlabel("Camera Z")
+
+    ax.set_xlim([-1, 1])
+    ax.set_ylim([-1, 1])
+    ax.set_zlim([-1, 1])
+
+    ax.set_box_aspect([1, 1, 1])
+    ax.set_title(f"ArUco marker {marker_id}")
+
+    ax.legend()
+
+    filename = f"rotation_marker_{marker_id}.png"
+    plt.savefig(filename, dpi=200, bbox_inches="tight")
+    plt.close(fig)
+
+    print(f"Saved {filename}")
 import time
 
 import os
@@ -124,6 +181,15 @@ def get_map_from_mirte(mirte):
 
             # Rotation of the marker relative to the camera.
             R, _ = cv2.Rodrigues(rvecs[i][0])
+
+            offset = (R @ obstacle_offset_3d_mm) / 1000.0
+
+            save_rotation_visualization(
+                R,
+                tvecs[i][0],
+                offset,
+                landmark_id
+            )
 
             # Estimate approximate center of the physical box.
             center_camera_mm = (tvecs[i][0] + R @ obstacle_offset_3d_mm)

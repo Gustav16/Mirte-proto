@@ -1,4 +1,5 @@
 import math
+import time
 import numpy as np
 
 
@@ -16,8 +17,7 @@ def closest_path_index(path, pose):
 
 def lookahead_point(path, pose, lookahead=0.25):
     """
-    Start at the closest path point and choose a point approximately
-    lookahead metres farther along the path.
+    Choose a point farther ahead on the path.
     """
     index = closest_path_index(path, pose)
     distance = 0.0
@@ -39,58 +39,113 @@ def follow_path(
     localizer=None,
     get_observations=None,
     landmarks=None,
-    linear_speed=0.30,
-    angular_speed=0.70,
-    linear_offset=-0.0355,
+    linear_speed=0.28,
+    max_angular_speed=0.75,
     lookahead=0.25,
-    command_distance=0.08,
     goal_tolerance=0.08,
-    max_steps=200,
+    control_period=0.25,
+    heading_gain=1.8,
+    max_time=30.0,
 ):
     """
-    Follow a start -> goal path.
+    Smooth path follower.
 
-    The controller repeatedly:
-    1. Gets the current pose from MCL.
-    2. Looks a little farther ahead on the path.
-    3. Rotates toward that point.
-    4. Drives a short distance.
-    5. Updates MCL from the movement and new observations.
+    Important difference from the old version:
+    MIRTE is NOT told to drive 8 cm and stop.
+
+    Instead it receives a continuous non-blocking velocity command.
+    While it is still moving, the controller updates the steering
+    direction and MCL estimate.
+
+    The robot only stops when the goal is reached or the safety
+    timeout is reached.
     """
     if path is None or len(path) < 2:
         return
 
-    path = [np.asarray(point, dtype=float) for point in path]
+    path = [
+        np.asarray(point, dtype=float)
+        for point in path
+    ]
 
     if localizer is None:
-        pose = np.array([path[0][0], path[0][1], 0.0])
+        pose = np.array([
+            path[0][0],
+            path[0][1],
+            0.0
+        ])
     else:
         pose = localizer.estimate_pose()
 
-    for _ in range(max_steps):
-        goal_distance = np.linalg.norm(path[-1] - pose[:2])
+    start_time = time.time()
+    last_time = start_time
 
-        if goal_distance <= goal_tolerance:
-            print("Goal reached.")
-            return
+    print("Starting smooth path following...")
 
-        target = lookahead_point(path, pose, lookahead)
-
-        dx = target[0] - pose[0]
-        dz = target[1] - pose[1]
-
-        target_theta = math.atan2(-dx, dz)
-        rotation = wrap_angle(target_theta - pose[2])
-
-        # Rotate first, like the original Execute_path.
-        if abs(rotation) > math.radians(5.0):
-            scaler = 1.05 if rotation > 0 else 1.10
-
-            mirte.drive(
-                0.0,
-                np.sign(rotation) * angular_speed,
-                scaler * abs(rotation) / angular_speed,
+    try:
+        while time.time() - start_time < max_time:
+            goal_distance = np.linalg.norm(
+                path[-1] - pose[:2]
             )
+
+            if goal_distance <= goal_tolerance:
+                mirte.stop()
+                print("Goal reached.")
+                return
+
+            target = lookahead_point(
+                path,
+                pose,
+                lookahead
+            )
+
+            dx = target[0] - pose[0]
+            dz = target[1] - pose[1]
+
+            target_theta = math.atan2(-dx, dz)
+            heading_error = wrap_angle(
+                target_theta - pose[2]
+            )
+
+            # Proportional steering.
+            angular = heading_gain * heading_error
+            angular = float(np.clip(
+                angular,
+                -max_angular_speed,
+                max_angular_speed
+            ))
+
+            # Slow down on sharper turns, but keep moving.
+            turn_amount = min(
+                abs(heading_error) / math.radians(45.0),
+                1.0
+            )
+
+            speed = linear_speed * (
+                1.0 - 0.55 * turn_amount
+            )
+
+            # Very close to the goal: approach more slowly.
+            if goal_distance < 0.20:
+                speed = min(speed, 0.18)
+
+            # Continuous command.
+            # duration=None means keep driving until a new command arrives.
+            # blocking=False means Python can immediately continue.
+            mirte.drive(
+                speed,
+                angular,
+                None,
+                blocking=False,
+                interrupt=True,
+            )
+
+            now = time.time()
+            dt = max(now - last_time, control_period)
+            last_time = now
+
+            translation = speed * dt
+            rotation = angular * dt
 
             if localizer is not None:
                 observations = (
@@ -98,46 +153,38 @@ def follow_path(
                     if get_observations is not None
                     else []
                 )
+
                 pose = localizer.update(
-                    (0.0, rotation),
+                    (translation, rotation),
                     observations,
                     landmarks,
                 )
             else:
-                pose[2] = wrap_angle(pose[2] + rotation)
+                pose[2] = wrap_angle(
+                    pose[2] + rotation
+                )
+                pose[0] -= (
+                    math.sin(pose[2]) * translation
+                )
+                pose[1] += (
+                    math.cos(pose[2]) * translation
+                )
 
-        # Recompute distance after rotation and move only a short step.
-        distance_to_target = np.linalg.norm(target - pose[:2])
-        distance = min(command_distance, distance_to_target, goal_distance)
-
-        if distance <= 1e-6:
-            continue
-
-        mirte.drive(
-            linear_speed,
-            linear_offset,
-            distance / linear_speed,
-        )
-
-        if localizer is not None:
-            observations = (
-                get_observations()
-                if get_observations is not None
-                else []
+            print(
+                f"pose: x={pose[0]:+.2f}, "
+                f"z={pose[1]:+.2f}, "
+                f"theta={math.degrees(pose[2]):+.1f} deg"
             )
-            pose = localizer.update(
-                (distance, 0.0),
-                observations,
-                landmarks,
-            )
-        else:
-            pose[0] -= math.sin(pose[2]) * distance
-            pose[1] += math.cos(pose[2]) * distance
 
-        print(
-            f"pose: x={pose[0]:+.2f}, "
-            f"z={pose[1]:+.2f}, "
-            f"theta={math.degrees(pose[2]):+.1f} deg"
-        )
+            # KU_Mirte.drive already spends about 0.2 s submitting
+            # the command. Only sleep if the loop was faster.
+            elapsed = time.time() - now
+            if elapsed < control_period:
+                time.sleep(control_period - elapsed)
 
-    print("Stopped because max_steps was reached.")
+        mirte.stop()
+        print("Stopped because path-following timeout was reached.")
+
+    except BaseException:
+        mirte.stop()
+        raise

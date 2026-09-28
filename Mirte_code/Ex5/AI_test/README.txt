@@ -62,3 +62,16 @@ PATH DRAWINGS FOR run_to_box.py
 
 The full_search_path image is the route the planner expected to take.
 It is not an external ground-truth measurement of the robot trajectory.
+
+
+V3 CHANGES
+- Smooth continuous path following:
+  MIRTE now receives non-blocking velocity commands and keeps moving
+  while steering/MCL are updated. The old 8 cm stop/start movement is gone.
+- Direct path first:
+  if the straight route to the local goal is collision-free, RRT is skipped.
+- RRT fallback:
+  RRT is used only when the direct route is blocked, with max 500 iterations.
+- ArUco confirmation:
+  local planning maps use two camera frames and keep only IDs visible in both.
+  This helps reject one-frame false detections.

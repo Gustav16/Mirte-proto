@@ -80,6 +80,11 @@ class RRT:
         self.node_list = [self.start]
 
         for i in range(self.max_iter):
+            if i > 0 and i % 100 == 0:
+                print(
+                    f"RRT iteration {i}/{self.max_iter}"
+                )
+
             rnd_node = self.get_random_node()
             nearest_ind = self.get_nearest_node_index(self.node_list, rnd_node)
             nearest_node = self.node_list[nearest_ind]
@@ -198,12 +203,44 @@ class RRT:
 
 
 def make_map(mirte):
-    """Take one camera frame and make a local landmark map."""
+    """
+    Make a local map from two camera frames.
+
+    An ArUco ID must be visible in both frames. This removes many
+    one-frame false detections, such as an unexpected ID 120.
+    Positions from the two frames are averaged.
+    """
     world_map = local_map.LocalMap(
         low=(-1.5, 0.0),
         high=(1.5, 3.0)
     )
-    world_map.update(mirte)
+
+    first = world_map.get_map_from_mirte(mirte)
+    second = world_map.get_map_from_mirte(mirte)
+
+    first_dict = {
+        int(marker_id): np.asarray(position, dtype=float)
+        for position, marker_id in first
+    }
+    second_dict = {
+        int(marker_id): np.asarray(position, dtype=float)
+        for position, marker_id in second
+    }
+
+    confirmed = []
+
+    for marker_id in first_dict.keys() & second_dict.keys():
+        position = (
+            first_dict[marker_id]
+            + second_dict[marker_id]
+        ) / 2.0
+
+        confirmed.append([
+            position,
+            marker_id
+        ])
+
+    world_map.landmarks = confirmed
     return world_map
 
 
@@ -231,27 +268,101 @@ def get_aruco_observations(mirte, sensor_map):
     return observations
 
 
+
+def direct_path_is_free(world_map, start, goal, step=0.05):
+    """Check a straight line from start to goal."""
+    start = np.asarray(start, dtype=float)
+    goal = np.asarray(goal, dtype=float)
+
+    distance = np.linalg.norm(goal - start)
+
+    if distance < 1e-9:
+        return True
+
+    number_of_points = max(
+        2,
+        int(math.ceil(distance / step)) + 1
+    )
+
+    for t in np.linspace(0.0, 1.0, number_of_points):
+        point = start + t * (goal - start)
+
+        if world_map.in_collision(point):
+            return False
+
+    return True
+
+
+def make_direct_path(start, goal, spacing=0.05):
+    """Create evenly spaced points on a straight path."""
+    start = np.asarray(start, dtype=float)
+    goal = np.asarray(goal, dtype=float)
+
+    distance = np.linalg.norm(goal - start)
+
+    if distance < 1e-9:
+        return [start, goal]
+
+    number_of_segments = max(
+        1,
+        int(math.ceil(distance / spacing))
+    )
+
+    return [
+        start + t * (goal - start)
+        for t in np.linspace(
+            0.0,
+            1.0,
+            number_of_segments + 1
+        )
+    ]
+
 def plan_path(world_map, goal):
-    """Plan and simplify a local path from [0, 0] to goal."""
+    """
+    Plan a local path from [0, 0] to goal.
+
+    First try the straight path. RRT is only used when an obstacle
+    actually blocks the direct route.
+    """
+    start = np.array([0.0, 0.0])
     goal = np.asarray(goal, dtype=float)
 
     if np.linalg.norm(goal) < 0.03:
-        return [np.array([0.0, 0.0]), goal]
+        return [start, goal]
+
+    print("Planning path...")
+
+    if direct_path_is_free(
+        world_map,
+        start,
+        goal
+    ):
+        print("Direct path is free.")
+        return make_direct_path(
+            start,
+            goal,
+            spacing=0.05
+        )
+
+    print("Direct path blocked. Starting RRT...")
 
     path_resolution = 0.10
 
     robot = robot_models.PointMassModel(
-        ctrl_range=[-path_resolution, path_resolution]
+        ctrl_range=[
+            -path_resolution,
+            path_resolution
+        ]
     )
 
     rrt = RRT(
-        start=[0.0, 0.0],
+        start=start,
         goal=goal,
         robot_model=robot,
         map=world_map,
         expand_dis=0.40,
         path_resolution=path_resolution,
-        max_iter=1500,
+        max_iter=500,
     )
 
     path = rrt.planning(
@@ -260,7 +371,10 @@ def plan_path(world_map, goal):
     )
 
     if path is None:
+        print("RRT could not find a path.")
         return None
+
+    print("RRT path found.")
 
     # RRT returns goal -> start.
     path = list(reversed(path))

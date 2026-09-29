@@ -236,9 +236,9 @@ OBJECT_DEPTH_MM = OBJECT_DEPTH_M * 1000.0
 
 # Shift from the ArUco paper plane toward the approximate box center.
 obstacle_offset_3d_mm = np.array([
-    -OBJECT_DEPTH_MM / 2.0,
     0.0,
-    0.0
+    0.0,
+    -OBJECT_DEPTH_MM / 2.0
 ])
 
 #hang said negatve x

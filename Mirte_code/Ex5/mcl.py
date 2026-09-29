@@ -6,17 +6,23 @@ class MCL:
     "MCL (monte-carlo localization) class"
     def __init__(self, 
                     prior,
-                    alpha1 = 0.05,  # rotation noise from rotation
-                    alpha2 = 0.05,  # rotation noise from translation
-                    alpha3 = 0.02, # translation noise from translation  
-                    alpha4 = 0.02  # translation noise from rotation
+                    alpha1 = 0.05,  # rotation noise from rotation TODO
+                    alpha2 = 0.05,  # rotation noise from translation TODO
+                    alpha3 = 0.02, # translation noise from translation  TODO
+                    alpha4 = 0.02,  # translation noise from rotation TODO
+                    fast_const = 0.9, #we may change this value TODO
+                    slow_const = 0.8 #we may change this value TODO
 
                      ):
         self.alpha1 = alpha1,  # rotation noise from rotation
         self.alpha2 = alpha2,  # rotation noise from translation
         self.alpha3 = alpha3, # translation noise from translation  
-        self.alpha4 = alpha4  # translation noise from rotation
-        self.particles = prior.copy()
+        self.alpha4 = alpha4  # translation noise from rotation 
+        self.W_fast = None
+        self.W_slow = None
+        self.fast_const = fast_const
+        self.slow_const =  slow_const
+        self.particles = prior
         self.M = len(self.particles)
 
     
@@ -53,9 +59,9 @@ class MCL:
         z_measured,
         particles,
         landmark_xy,
-        sigma_hit=0.05,   # meters -- tune to your camera's measured noise
-        z_min=0.10,       # meters -- closest distance ArUco can be reliably detected
-        z_max=3.00,       # meters -- farthest distance ArUco can be reliably detected
+        sigma_hit=0.00483,   # meters
+        z_min=0.10,       # meters -- closest distance ArUco can be reliably detected TODO
+        z_max=3.00,       # meters -- farthest distance ArUco can be reliably detected TODO
         ):
         """
         Weight each particle by how well its implied distance to the landmark
@@ -67,6 +73,7 @@ class MCL:
     
         returns: (N,) array of (unnormalized) weights
         """
+        # TODO: rewrite
         z_true = self.true_distance_to_landmark(particles, landmark_xy)
     
         p_range = self.uniform_pdf(z_true, z_min, z_max)          # gate: is this pose even plausible?
@@ -94,7 +101,7 @@ class MCL:
         y_prime = x_last.getY() + d_trans_est*np.sin(theta_new + d_rot_1_est)
         theta_prime = np.mod(x_last.getTheta() + d_rot_1_est + d_rot_2_est, 2.0 * np.pi) 
         
-        return pcl.Particle(x_prime, y_prime, theta_prime, pcl.getWeight())
+        return pcl.Particle(x_prime, y_prime, theta_prime)
 
     def is_state_possible(self, x_t, m):
         return not m.in_collision((x_t.getX(), x_t.getY()))
@@ -105,27 +112,54 @@ class MCL:
         while not q:
             x_t = self.sample_motion_model(u,x_last)
             q = self.is_state_possible(x_t, m)
-        # if prop then return that
         return x_t
 
     def measurement_model(self ,z, x, m):
-        return  self.observation_model_aruco()
+        "measurement model"
+        return self.observation_model_aruco(z, x,m)
+    
+    def add_noise(self, m):
+        "function for adding random pose to map"
+        while True:
+            x = np.random.uniform(m.map_area[0][0], m.map_area[1][0])
+            y = np.random.uniform(m.map_area[0][1], m.map_area[1][1])
+            theta = np.random.uniform(0, 2*np.pi)
+
+            if not m.in_collision([x,y]):
+                return pcl.Particle(x, y, theta, 1.0/self.M)
 
     def mcl(self, u, z, m):
-        "MCL function"
+        "augmented MCL function"
         particles = self.sample_motion_model_with_map(u, self.particles, m)
-        particles.setWeight = self.measurement_model(z, particles, m)
-        particles.setWeight = np.cumsum(particles.getWeight() /np.sum(particles.getWeight())) #smooth weights
-
-        #redraw samples
+        weights = self.measurement_model(z, particles, m)
+        #keep this for now may not use
+        for p, w in zip(particles, weights):
+            p.setWeight(w)
+        
+        w_avg = np.mean(weights)
+        self.W_fast += self.fast_const(w_avg - self.W_fast)
+        self.W_slow += self.slow_const(w_avg - self.W_slow)
+        weights = np.cumsum(weights /np.sum(weights)) #smooth weights
+        
+        #redraw sample
+        random_noise = np.random.rand(self.M) < max(0, 1- self.W_fast/self.W_slow)
         picks = np.random.rand(self.M)
-        indices = np.searchsorted(particles.getWeight, picks) #use binsearch to get indices
+        indices = np.searchsorted(weights, picks)
+
+        new_particles = []
+        for i in range(self.M):
+            if random_noise[i]:
+                new_particles.append(self.add_noise(m))
+            else:
+                new_particles.append(particles[indices[i]])
 
         #set new belief distribution
-        self.particles = particles[indices]
+        self.particles = np.array(new_particles)
         return
-
-    def estimate_pose(self):
-        "return estimate of pose as everage of particles"
-        return pcl.Particle.estimate_pose(self.particles)
+    
+    def estimate_pose(self, particles = None):
+        "return estimate of pose as average of particles, or given particle list"
+        if particles is None:
+            particles = self.particles
+        return pcl.Particle.estimate_pose(particles)
     

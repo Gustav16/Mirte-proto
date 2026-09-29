@@ -249,7 +249,7 @@ def Execute_path(path, mirte):
         # Update estimated pose
         current_pose[0] = point[0]
         current_pose[1] = point[1]
-        current_pose[2] = target_theta
+        current_pose[2] = np.mod(target_theta, 2.0 * np.pi)
 
 
 def simplify_path(path, rrt):

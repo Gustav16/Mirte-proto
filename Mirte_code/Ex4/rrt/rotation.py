@@ -21,6 +21,12 @@ import numpy as np
 
 def save_rotation_visualization(R, tvec, offset, marker_id):
 
+    # FIX 1: tvec comes in from estimatePoseSingleMarkers in MILLIMETRES,
+    # but `offset` is already in METRES. Convert tvec here so everything
+    # downstream (scatter points, box_center, axis limits) uses the same unit.
+    tvec = np.asarray(tvec, dtype=float) / 1000.0
+    offset = np.asarray(offset, dtype=float)
+
     fig = plt.figure(figsize=(10, 8))
     ax = fig.add_subplot(111, projection="3d")
 
@@ -29,7 +35,7 @@ def save_rotation_visualization(R, tvec, offset, marker_id):
     # -------------------------
     # Camera coordinate axes
     # -------------------------
-    axis_length = 0.3
+    axis_length = 0.1  # shrunk so it doesn't dominate now that points are in-frame
 
     ax.quiver(
         0, 0, 0,
@@ -63,8 +69,10 @@ def save_rotation_visualization(R, tvec, offset, marker_id):
     y_axis = R @ np.array([0., 1., 0.])
     z_axis = R @ np.array([0., 0., 1.])
 
+    # FIX 2 (minor): draw these starting AT the marker's position (tvec)
+    # instead of at the origin, so they visually sit where the marker is.
     ax.quiver(
-        0, 0, 0,
+        *tvec,
         *(axis_length * x_axis),
         color="red",
         linewidth=3,
@@ -72,7 +80,7 @@ def save_rotation_visualization(R, tvec, offset, marker_id):
     )
 
     ax.quiver(
-        0, 0, 0,
+        *tvec,
         *(axis_length * y_axis),
         color="green",
         linewidth=3,
@@ -80,7 +88,7 @@ def save_rotation_visualization(R, tvec, offset, marker_id):
     )
 
     ax.quiver(
-        0, 0, 0,
+        *tvec,
         *(axis_length * z_axis),
         color="blue",
         linewidth=3,
@@ -132,10 +140,16 @@ def save_rotation_visualization(R, tvec, offset, marker_id):
 
     ax.set_title(f"ArUco Marker {marker_id} Rotation")
 
-    # Equal scale
-    ax.set_xlim([-0.5, 0.5])
-    ax.set_ylim([-0.5, 0.5])
-    ax.set_zlim([-0.5, 0.5])
+    # FIX 3: dynamic axis limits instead of a fixed +-0.5, so the plot
+    # always fits wherever the marker/box actually are, at any distance.
+    all_points = np.array([[0, 0, 0], tvec, box_center])
+    pad = 0.15
+    center = all_points.mean(axis=0)
+    span = max(np.ptp(all_points, axis=0).max(), 0.3) / 2 + pad
+
+    ax.set_xlim(center[0] - span, center[0] + span)
+    ax.set_ylim(center[1] - span, center[1] + span)
+    ax.set_zlim(center[2] - span, center[2] + span)
 
     ax.set_box_aspect([1, 1, 1])
 
@@ -226,6 +240,12 @@ obstacle_offset_3d_mm = np.array([
     0.0,
     0.0
 ])
+
+#hang said negatve x
+
+#Ai says netgative z
+
+#try hangs first
 
 
 

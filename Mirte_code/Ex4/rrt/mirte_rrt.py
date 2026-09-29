@@ -208,7 +208,7 @@ from visualize_local_map import plot_local_map, plot_path, PNG_PATH
 def Execute_path(path, mirte):
     path.reverse()
     current_pose = np.array([0.0, 0.0, 0.0])
-    linear_offset = -0.0355
+    linear_offset = -0.03555
 
     linear_speed = 0.3   # m/s
     angular_speed = 0.7   # rad/s

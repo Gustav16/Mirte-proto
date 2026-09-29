@@ -42,23 +42,23 @@ class MCL:
         return np.where(inside, 1.0 / width, 0.0)
  
 
-    def true_distance_to_landmark(self, particles, landmark_xy):
+    def true_distance_to_landmark(self, x_t, landmark_xy):
         """
         particles: (N, 3) array of [x, y, theta] poses
         landmark_xy: (2,) array [lx, ly]
         returns: (N,) array of Euclidean distances from each particle to the landmark
         """
         delta = np.array([
-        landmark_xy[0] - particles.getX(),
-        landmark_xy[1] - particles.getY()])
+        landmark_xy[0] - x_t.getX(),
+        landmark_xy[1] - x_t.getY()])
 
         return np.linalg.norm(delta)
  
  
     def observation_model_aruco(self,
         z_measured,
-        particles,
-        landmark_xy,
+        x_t,
+        landmark_xy, # TODO
         sigma_hit=0.00483,   # meters
         z_min=0.10,       # meters -- closest distance ArUco can be reliably detected TODO
         z_max=3.00,       # meters -- farthest distance ArUco can be reliably detected TODO
@@ -74,13 +74,17 @@ class MCL:
         returns: (N,) array of (unnormalized) weights
         """
         # TODO: rewrite
-        z_true = self.true_distance_to_landmark(particles, landmark_xy)
+        z_true = self.true_distance_to_landmark(x_t, landmark_xy)
     
         p_range = self.uniform_pdf(z_true, z_min, z_max)          # gate: is this pose even plausible?
         p_hit = self.gaussian_pdf(z_measured, z_true, sigma_hit)  # how close is measurement to that pose's true distance?
     
         weights = p_range * p_hit
         return weights
+    
+    def measurement_model(self, z, x_t, m):
+        "measurement model"
+        return self.observation_model_aruco(z, x_t, m)
 
     def sample(self, b_variance):
         "function for sampling noise using gaussian"
@@ -113,10 +117,6 @@ class MCL:
             x_t = self.sample_motion_model(u,x_last)
             q = self.is_state_possible(x_t, m)
         return x_t
-
-    def measurement_model(self ,z, x, m):
-        "measurement model"
-        return self.observation_model_aruco(z, x,m)
     
     def add_noise(self, m):
         "function for adding random pose to map"
@@ -130,15 +130,20 @@ class MCL:
 
     def mcl(self, u, z, m):
         "augmented MCL function"
-        particles = self.sample_motion_model_with_map(u, self.particles, m)
-        weights = self.measurement_model(z, particles, m)
+        particles = np.array([self.sample_motion_model_with_map(u, x_last, m) for x_last in self.particles])
+        weights =  np.array([self.measurement_model(z, x_t, m) for x_t in particles])
+
         #keep this for now may not use
         for p, w in zip(particles, weights):
             p.setWeight(w)
         
         w_avg = np.mean(weights)
-        self.W_fast += self.fast_const(w_avg - self.W_fast)
-        self.W_slow += self.slow_const(w_avg - self.W_slow)
+        if self.W_fast is None: #init as average of weights
+            self.W_fast = self.W_slow = w_avg
+        else:
+            self.W_fast += self.fast_const*(w_avg - self.W_fast)
+            self.W_slow += self.slow_const*(w_avg - self.W_slow)
+
         weights = np.cumsum(weights /np.sum(weights)) #smooth weights
         
         #redraw sample
@@ -146,12 +151,9 @@ class MCL:
         picks = np.random.rand(self.M)
         indices = np.searchsorted(weights, picks)
 
-        new_particles = []
-        for i in range(self.M):
-            if random_noise[i]:
-                new_particles.append(self.add_noise(m))
-            else:
-                new_particles.append(particles[indices[i]])
+        #add random noise with propability p or redraw particle
+        new_particles = [
+            self.add_noise(m) if random_noise[i] else particles[indices[i]] for i in range(self.M)]
 
         #set new belief distribution
         self.particles = np.array(new_particles)

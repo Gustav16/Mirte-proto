@@ -116,7 +116,8 @@ def main():
                 print(
                     f"ID {int(marker_id)}: "
                     f"distance = {distance_m:.3f} m, "
-                    f"angle = {angle_deg:+.3f} deg"
+                    f"angle = {angle_deg:+.3f} deg, "
+                    f"{angle_rad:+.5f} rad"
                 )
 
             time.sleep(0.1)

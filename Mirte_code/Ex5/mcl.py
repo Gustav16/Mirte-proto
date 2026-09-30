@@ -8,10 +8,10 @@ class MCL:
                     prior,
                     alpha1 = 0.05,  # rotation noise from rotation TODO
                     alpha2 = 0.05,  # rotation noise from translation TODO
-                    alpha3 = 0.02, # translation noise from translation  TODO
+                    alpha3 = 0.05, # translation noise from translation  TODO
                     alpha4 = 0.02,  # translation noise from rotation TODO
-                    fast_const = 0.9, #we may change this value TODO
-                    slow_const = 0.8 #we may change this value TODO
+                    fast_const = 0.1, #we may change this value TODO
+                    slow_const = 0.001 #we may change this value TODO
 
                      ):
         self.alpha1 = alpha1,  # rotation noise from rotation
@@ -40,28 +40,70 @@ class MCL:
         width = high - low
         inside = (z >= low) & (z <= high)
         return np.where(inside, 1.0 / width, 0.0)
+
+    def is_visible(self, bearing):
+        "function that determines if a particle could potentially see a landmark"
+        #  TODO decide FOV right now just use 90 degrees
+        if abs(bearing) > np.pi / 4:
+            return False
+        return True
  
 
-    def true_distance_to_landmark(self, x_t, landmark_xy):
+    def true_z_for_landmarks(self, x_t, m):
         """
-        particles: (N, 3) array of [x, y, theta] poses
-        landmark_xy: (2,) array [lx, ly]
-        returns: (N,) array of Euclidean distances from each particle to the landmark
+        get distance and bearing to landmarks in a dictionary
         """
-        delta = np.array([
-        landmark_xy[0] - x_t.getX(),
-        landmark_xy[1] - x_t.getY()])
+        res = {}
+        particle_x =  x_t.getX()
+        particle_y =  x_t.getY()
+        particle_theta = x_t.getTheta()
+        for pos, id in m.landmarks:
+            landmark_x,landmark_y = pos
+            delta = np.array([
+            landmark_x - particle_x,
+            landmark_y - particle_y])
+            bearing = np.mod(np.arctan2(delta[1], delta[0]) - particle_theta + np.pi, 
+                             2 * np.pi) - np.pi
+            if not self.is_visible(bearing):
+                res[id] = None
+            else:
+                res[id] = np.array([np.linalg.norm(delta), bearing]) #get distance and bearing to landmarks in a dictionary
+        return res
 
-        return np.linalg.norm(delta)
- 
+    def p_hit(self,z_measured ,z_true, z_min, z_max, sigma_hit):
+        "hit function we assume independece and use the product"
+        prop = 1
+        for id in z_true:
+            if z_true[id] is None:
+                #if z_measrued also is none contiue
+                if z_measured[id] is None:
+                    continue
+                #else give some prop missed prop value that reduces value
+                else:
+                    prop*=0.02 # TODO decide if we will change this  # false detection
+            else:
+                #if z measured is None
+                if z_measured[id] is None:
+                    prop*=0.2 # TODO decide if we will change this  # missed detection
+                #else use normal distribution
+                else:#else use normal distribution
+                    prop*= self.gaussian_pdf(z_measured[id[0]], z_true[id[0]], sigma_hit)
+                    #TODO add prop for beraing
+        return prop
+
+
+
+
+    def p_range(self, ):
+        pass
  
     def observation_model_aruco(self,
         z_measured,
         x_t,
-        landmark_xy, # TODO
-        sigma_hit=0.00483,   # meters
-        z_min=0.10,       # meters -- closest distance ArUco can be reliably detected TODO
-        z_max=3.00,       # meters -- farthest distance ArUco can be reliably detected TODO
+        m,
+        sigma_hit=0.00483,   # meters (std deviation)
+        z_min=0.30,       # meters -- closest distance ArUco can be reliably detected
+        z_max=5.00,       # meters -- farthest distance ArUco can be reliably detected TODO
         ):
         """
         Weight each particle by how well its implied distance to the landmark
@@ -74,7 +116,7 @@ class MCL:
         returns: (N,) array of (unnormalized) weights
         """
         # TODO: rewrite
-        z_true = self.true_distance_to_landmark(x_t, landmark_xy)
+        z_true = self.true_z_for_landmarks(x_t, m)
     
         p_range = self.uniform_pdf(z_true, z_min, z_max)          # gate: is this pose even plausible?
         p_hit = self.gaussian_pdf(z_measured, z_true, sigma_hit)  # how close is measurement to that pose's true distance?

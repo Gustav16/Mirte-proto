@@ -2,81 +2,130 @@
 """
 angle.py
 
-Simpel MIRTE ArUco-test:
-- henter billeder med den eksisterende Camera-klasse
-- finder ArUco-koder
-- viser afstand og vinkel
+Simpel ArUco-maaling paa MIRTE.
 
-VIGTIGT:
-Denne fil forventer, at camera.py ligger i samme mappe.
+Bruger samme kamera-metode som jeres gamle fungerende fil:
+    mirte.get_image_compressed()
 
-Camera.detect_aruco_objects() returnerer:
-    ids
-    distance i cm
-    angle i radianer
+Viser for hver ArUco-kode:
+- ID
+- afstand til midten af markoeren
+- vinkel relativt til kameraets retning
 
-Vi konverterer her til:
-    distance i meter
-    angle i grader
-
-Fortegn følger camera.py:
-    positiv vinkel = venstre
-    negativ vinkel = højre
+Fortegn:
+- positiv vinkel = venstre
+- negativ vinkel = hoejre
 """
 
-import math
 import cv2
+import sys
+import os
+import math
+import time
+import numpy as np
 
-from camera import Camera
+# Samme import-metode som i jeres gamle kamera-fil
+sys.path.append(
+    os.path.join(
+        os.path.dirname(__file__),
+        '../../Mirte/ku_mirte_python'
+    )
+)
+
+from ku_mirte import KU_Mirte
+
+
+# ------------------------------------------------------------
+# Kamera / ArUco-indstillinger
+# ------------------------------------------------------------
+
+FOCAL_LENGTH_PX = 609.9
+
+IMAGE_WIDTH = 640
+IMAGE_HEIGHT = 480
+
+cx = IMAGE_WIDTH / 2.0
+cy = IMAGE_HEIGHT / 2.0
+
+intrinsic_matrix = np.array([
+    [FOCAL_LENGTH_PX, 0, cx],
+    [0, FOCAL_LENGTH_PX, cy],
+    [0, 0, 1]
+], dtype=np.float32)
+
+distortion_coeffs = np.zeros(5)
+
+# Fysisk stoerrelse paa ArUco-markoeren.
+# Samme vaerdi som i jeres gamle fil.
+ARUCO_MARKER_LENGTH_MM = 145.0
+
+aruco_dict = cv2.aruco.getPredefinedDictionary(
+    cv2.aruco.DICT_6X6_250
+)
 
 
 def main():
-    print("Starter kamera...")
-    cam = Camera(0, robottype="arlo", useCaptureThread=False)
+    print("Starter MIRTE...")
+    mirte = KU_Mirte()
 
-    window_name = "ArUco distance and angle"
-    cv2.namedWindow(window_name)
+    time.sleep(1)
 
-    print("\nStarter ArUco-maaling")
+    print("Starter ArUco afstand + vinkel maaling")
     print("Positiv vinkel = venstre")
     print("Negativ vinkel = hoejre")
-    print("Tryk q i kameravinduet for at stoppe.\n")
+    print("Tryk Ctrl+C for at stoppe.\n")
 
     try:
         while True:
-            # Hent billede med den samme Camera-klasse,
-            # som I tidligere har brugt på MIRTE.
-            frame = cam.get_next_frame()
+            # Samme metode som i jeres gamle fungerende kamera-fil
+            img = mirte.get_image_compressed()
 
-            # Camera-klassen finder selv ArUco og beregner
-            # afstand (cm) og vinkel (radianer).
-            ids, dists_cm, angles_rad = cam.detect_aruco_objects(frame)
+            if img is None:
+                print("Kunne ikke hente billede.")
+                time.sleep(0.1)
+                continue
 
-            if ids is not None:
-                for i in range(len(ids)):
-                    marker_id = int(ids[i])
-                    distance_m = float(dists_cm[i]) / 100.0
-                    angle_deg = math.degrees(float(angles_rad[i]))
+            corners, ids, _ = cv2.aruco.detectMarkers(
+                img,
+                aruco_dict
+            )
 
-                    print(
-                        f"ID {marker_id}: "
-                        f"distance = {distance_m:.3f} m, "
-                        f"angle = {angle_deg:+.3f} deg"
-                    )
+            if ids is None or len(ids) == 0:
+                print("Ingen ArUco-kode fundet.")
+                time.sleep(0.2)
+                continue
 
-                # Tegn de detekterede ArUco-koder og akser
-                cam.draw_aruco_objects(frame)
+            rvecs, tvecs, _ = cv2.aruco.estimatePoseSingleMarkers(
+                corners,
+                ARUCO_MARKER_LENGTH_MM,
+                intrinsic_matrix,
+                distortion_coeffs
+            )
 
-            cv2.imshow(window_name, frame)
+            for i, marker_id in enumerate(ids.flatten()):
+                x, y, z = tvecs[i][0]
 
-            key = cv2.waitKey(10) & 0xFF
-            if key == ord("q"):
-                break
+                # Vandret afstand fra kamera til centrum af markoeren
+                distance_mm = math.sqrt(x*x + z*z)
+                distance_m = distance_mm / 1000.0
+
+                # Samme vinkelberegning som i jeres gamle kamera-fil
+                angle_rad = -math.atan2(x, z)
+                angle_deg = math.degrees(angle_rad)
+
+                print(
+                    f"ID {int(marker_id)}: "
+                    f"distance = {distance_m:.3f} m, "
+                    f"angle = {angle_deg:+.3f} deg"
+                )
+
+            time.sleep(0.1)
+
+    except KeyboardInterrupt:
+        print("\nStopper.")
 
     finally:
-        cv2.destroyAllWindows()
-        cam.terminateCaptureThread()
-        del cam
+        del mirte
 
 
 if __name__ == "__main__":

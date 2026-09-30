@@ -70,7 +70,7 @@ class MCL:
                 res[id] = np.array([np.linalg.norm(delta), bearing]) #get distance and bearing to landmarks in a dictionary
         return res
 
-    def p_hit(self,z_measured ,z_true, z_min, z_max, sigma_hit):
+    def p_hit(self,z_measured ,z_true, sigma_hit):
         "hit function we assume independece and use the product"
         prop = 1
         for id in z_true:
@@ -87,23 +87,28 @@ class MCL:
                     prop*=0.2 # TODO decide if we will change this  # missed detection
                 #else use normal distribution
                 else:#else use normal distribution
-                    prop*= self.gaussian_pdf(z_measured[id[0]], z_true[id[0]], sigma_hit)
-                    #TODO add prop for beraing
+                    prop*= self.gaussian_pdf(z_measured[id][0], z_true[id][0], sigma_hit[0])
+                    prop*= self.gaussian_pdf(z_measured[id][1], z_true[id][1], sigma_hit[1]) 
+                    #TODO add bearing std deviation
         return prop
 
-
-
-
-    def p_range(self, ):
-        pass
+    def p_range(self, z_measured, z_min, z_max):
+        prop = 1
+        for id in z_measured:
+            if z_measured[id] is None:
+                continue
+            measured_dist, measured_bearing = z_measured[id]
+            prop*= self.uniform_pdf(measured_dist, z_min[0], z_max[0])
+            prop*= self.uniform_pdf(measured_bearing, z_min[1], z_max[1])
+        return prop
  
     def observation_model_aruco(self,
         z_measured,
         x_t,
         m,
-        sigma_hit=0.00483,   # meters (std deviation)
-        z_min=0.30,       # meters -- closest distance ArUco can be reliably detected
-        z_max=5.00,       # meters -- farthest distance ArUco can be reliably detected TODO
+        sigma_hit=[0.00483, None],   # meters (std deviation) TODO
+        z_min=[0.30,None],       # meters -- closest distance ArUco can be reliably detected
+        z_max=[5.00, None],       # meters -- farthest distance ArUco can be reliably detected TODO
         ):
         """
         Weight each particle by how well its implied distance to the landmark
@@ -118,9 +123,9 @@ class MCL:
         # TODO: rewrite
         z_true = self.true_z_for_landmarks(x_t, m)
     
-        p_range = self.uniform_pdf(z_true, z_min, z_max)          # gate: is this pose even plausible?
-        p_hit = self.gaussian_pdf(z_measured, z_true, sigma_hit)  # how close is measurement to that pose's true distance?
-    
+        p_range = self.p_range(z_measured, z_min, z_max)          # gate: is this pose even plausible?
+        p_hit = self.p_hit(z_measured, z_true, sigma_hit)  # how close is measurement to that pose's true distance?
+
         weights = p_range * p_hit
         return weights
     

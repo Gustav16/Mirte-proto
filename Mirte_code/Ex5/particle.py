@@ -111,3 +111,18 @@ def measurement_weight(particle, dist, angle, landmark, sigma_dist, sigma_angle,
     exp_dist, exp_angle = expected_measurement(particle, landmark, camera_offset)
     angle_error = np.arctan2(np.sin(angle - exp_angle), np.cos(angle-exp_angle))
     return gaussian(dist-exp_dist, sigma_dist) * gaussian(angle_error, sigma_angle)
+
+# now that we have some initals weights we want to normalise them to 1, by summing.
+# and then we want to do a resamle, using these neew weigths.
+
+def normalise_weights(particles_list): 
+    total = sum(p.getWeight() for p in particles_list)
+    n = len(particles_list)
+    for p in particles_list: 
+        p.setWeight(p.getWeight() / total if total > 0.0 else 1.0 / n)
+# draw new set off particles, each old particle isnpicked with the propability equal its weight.
+def resample(particles_list): 
+    n= len(particles_list)
+    weights = [p.getWeight() for p in particles_list]
+    picks = np.random.choice(n, size=n, p=weights)
+    return [Particle(particles_list[i].getX(), particles_list[i].getY(), particles_list[i].getTheta(), 1.0/n)for i in picks]

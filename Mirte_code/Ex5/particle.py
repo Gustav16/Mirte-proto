@@ -86,9 +86,10 @@ def add_uncertainty_von_mises(particles_list, sigma, theta_kappa):
         particle.y += rn.randn(0.0, sigma)
         particle.theta = np.mod(rn.rand_von_mises(particle.theta, theta_kappa), 2.0 * np.pi) - np.pi
 
+
 # pretty simple helper function that uses landmarks and particles to get the
-# distance and angle the camera would measure if the robot stood at this particle pose. 
-def expected_measurement(particle, landmark, camera_offset = 0.0): 
+# distance and angle the camera would measure if the robot stood at this particle pose.
+def expected_measurement(particle, landmark, camera_offset = 0.0):
     cam_x = particle.getX() + camera_offset * np.cos(particle.getTheta())
     cam_y = particle.getY() + camera_offset * np.sin(particle.getTheta())
 
@@ -97,13 +98,16 @@ def expected_measurement(particle, landmark, camera_offset = 0.0):
 
     dist = np.sqrt(dx * dx + dy* dy)
     angle = np.arctan2(dy, dx) - particle.getTheta()
-    angle = np.acrtan2(np.sin(angle), np.cos(angle))
+    angle = np.arctan2(np.sin(angle), np.cos(angle))
 
     return dist, angle
 
-def gausian(error, sigma): 
-        return np.exp(-0.5 * (error / sigma) ** 2) / (np.sqrt(2.0 * np.pi) * sigma)
+
+def gaussian(error, sigma):
+    return np.exp(-0.5 * (error / sigma) ** 2) / (np.sqrt(2.0 * np.pi) * sigma)
+
+
 def measurement_weight(particle, dist, angle, landmark, sigma_dist, sigma_angle, camera_offset = 0.0):
     exp_dist, exp_angle = expected_measurement(particle, landmark, camera_offset)
     angle_error = np.arctan2(np.sin(angle - exp_angle), np.cos(angle-exp_angle))
-    return gausian(dist-exp_dist, sigma_dist) * gausian(angle_error, sigma_angle)
+    return gaussian(dist-exp_dist, sigma_dist) * gaussian(angle_error, sigma_angle)

@@ -26,7 +26,7 @@ sys.path.append(
     )
 )
 
-from ku_mirte import KU_Mirte
+#from ku_mirte import KU_Mirte
 
 
 # ---------------------------------------------------------------------------

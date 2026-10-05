@@ -14,9 +14,9 @@ class MCL:
                     slow_const = 0.001 #we may change this value TODO
 
                      ):
-        self.alpha1 = alpha1,  # rotation noise from rotation
-        self.alpha2 = alpha2,  # rotation noise from translation
-        self.alpha3 = alpha3, # translation noise from translation  
+        self.alpha1 = alpha1  # rotation noise from rotation
+        self.alpha2 = alpha2  # rotation noise from translation
+        self.alpha3 = alpha3 # translation noise from translation  
         self.alpha4 = alpha4  # translation noise from rotation 
         self.W_fast = None
         self.W_slow = None
@@ -73,14 +73,16 @@ class MCL:
         for id in z_true:
             #is_visvible_from_pose = self.is_visible(z_true[id][1], z_max[1])
             is_visible_from_pose = True
-            if z_measured[id] is None:
+            measured = z_measured.get(id)
+
+            if measured is None:
                 if is_visible_from_pose:
                     prop *= 0.3  # missed detection
                 else:
                     continue
             else:
-                prop *= self.gaussian_pdf(z_measured[id][0], z_true[id][0], sigma_hit[0])
-                #prop *= self.gaussian_pdf(z_measured[id][1], z_true[id][1], sigma_hit[1]) #TODO add bearing std deviation
+                prop *= self.gaussian_pdf(measured[0], z_true[id][0], sigma_hit[0])
+                #prop *= self.gaussian_pdf(measured[1], z_true[id][1], sigma_hit[1]) #TODO add bearing std deviation
         return prop
 
     def p_range(self, z_measured, z_min, z_max, sigma_hit):
@@ -101,9 +103,9 @@ class MCL:
         z_measured,
         x_t,
         m,
-        sigma_hit=[0.00483, 0.014976488],   # meters (std deviation) TODO
-        z_min=[0.30,-0.34877],       # meters -- closest distance ArUco can be reliably detected
-        z_max=[5.00, 0.34877],       # meters -- farthest distance ArUco can be reliably detected TODO
+        sigma_hit=[10, 0.014976488],   # meters (std deviation) TODO change back to m instead of cm
+        z_min=[30,-0.34877],       # meters -- closest distance ArUco can be reliably detected
+        z_max=[500, 0.34877],       # meters -- farthest distance ArUco can be reliably detected TODO
         ):
         """
         Weight each particle by how well its implied distance to the landmark
@@ -119,7 +121,7 @@ class MCL:
         z_true = self.true_z_for_landmarks(x_t, m)
     
         #p_range = self.p_range(z_measured, z_min, z_max)          # gate: is this pose even plausible?
-        p_hit = self.p_hit(z_measured, z_true, sigma_hit)  # how close is measurement to that pose's true distance?
+        p_hit = self.p_hit(z_measured, z_true, sigma_hit, z_max)  # how close is measurement to that pose's true distance?
 
         #weights = p_range * p_hit
         weights = p_hit
@@ -171,6 +173,9 @@ class MCL:
             if not m.in_collision([x,y]):
                 return pcl.Particle(x, y, theta, 1.0/self.M)
 
+    def copy_particle(self, particle):
+        return pcl.Particle(particle.getX(), particle.getY(), particle.getTheta(), particle.getWeight())
+
     def mcl(self, u, z, m):
         "augmented MCL function"
         particles = np.array([self.sample_motion_model_with_map(u, x_last, m) for x_last in self.particles])
@@ -196,7 +201,7 @@ class MCL:
 
         #add random noise with propability p or redraw particle
         new_particles = [
-            self.add_noise(m) if random_noise[i] else particles[indices[i]] for i in range(self.M)]
+            self.add_noise(m) if random_noise[i] else self.copy_particle(particles[indices[i]]) for i in range(self.M)]
 
         #set new belief distribution
         self.particles = np.array(new_particles)

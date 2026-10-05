@@ -15,7 +15,7 @@ sys.path.append(
     )
 )
 
-from ku_mirte import KU_Mirte
+#from ku_mirte import KU_Mirte
 
 
 # Flags
@@ -58,17 +58,18 @@ CBLACK = (0, 0, 0)
 
 # Landmarks.
 # The robot knows the position of 2 landmarks. Their coordinates are in the unit centimeters [cm].
-landmarkIDs = [1, 2]
+landmarkIDs = [1, 3]
 landmarks = {
     1: (0.0, 0.0),  # Coordinates for landmark 1
-    2: (300.0, 0.0)  # Coordinates for landmark 2
+    3: (100.0, 0.0)  # Coordinates for landmark 2
 }
 landmark_colors = [CRED, CGREEN] # Colors used when drawing the landmarks
 
 m = local_map.LocalMap(low=(-100.0, -250.0),
-        high=(500.0, 350.0))
+        high=(500.0, 350.0), landmark_radius=2,
+                mirte_radius=2)
 
-m.landmarks =[[[0.0,0.0],1],[[300.0,0.0],2]]
+m.landmarks =[[[0.0,0.0],1],[[100.0,0.0],3]]
 
 
 
@@ -177,7 +178,7 @@ try:
         cam = camera.Camera(0, robottype='arlo', useCaptureThread=False)
     else:
         #cam = camera.Camera(0, robottype='macbookpro', useCaptureThread=True)
-        cam = camera.Camera(1, robottype='macbookpro', useCaptureThread=False)
+        cam = camera.Camera(0, robottype='macbookpro', useCaptureThread=False)
 
     while True:
 
@@ -241,6 +242,17 @@ try:
         est_pose = aug_mcl.estimate_pose() # The estimate of the robots current pose
 
         if showGUI:
+
+            print(
+                "particles:",
+                len(aug_mcl.particles),
+                "weight range:",
+                min(p.getWeight() for p in aug_mcl.particles),
+                max(p.getWeight() for p in aug_mcl.particles),
+                "pose:",
+                est_pose.getX(),
+                est_pose.getY()
+            )
             # Draw map
             draw_world(est_pose, aug_mcl.particles, world)
     

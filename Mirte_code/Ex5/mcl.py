@@ -22,7 +22,7 @@ class MCL:
         self.W_slow = None
         self.fast_const = fast_const
         self.slow_const =  slow_const
-        self.particles = prior
+        self.particles = np.array(prior)
         self.M = len(self.particles)
 
     
@@ -41,10 +41,10 @@ class MCL:
         inside = (z >= low) & (z <= high)
         return np.where(inside, 1.0 / width, 0.0)
 
-    def is_visible(self, bearing):
+    def is_visible(self, bearing, z_max):
         "function that determines if a particle could potentially see a landmark"
         #  TODO decide FOV right now just use 90 degrees
-        if abs(bearing) > np.pi / 4:
+        if abs(bearing) > z_max:
             return False
         return True
  
@@ -64,51 +64,46 @@ class MCL:
             landmark_y - particle_y])
             bearing = np.mod(np.arctan2(delta[1], delta[0]) - particle_theta + np.pi, 
                              2 * np.pi) - np.pi
-            if not self.is_visible(bearing):
-                res[id] = None
-            else:
-                res[id] = np.array([np.linalg.norm(delta), bearing]) #get distance and bearing to landmarks in a dictionary
+            res[id] = np.array([np.linalg.norm(delta), bearing]) #get distance and bearing to landmarks in a dictionary
         return res
 
-    def p_hit(self,z_measured ,z_true, sigma_hit):
+    def p_hit(self,z_measured ,z_true, sigma_hit, z_max):
         "hit function we assume independece and use the product"
         prop = 1
         for id in z_true:
-            if z_true[id] is None:
-                #if z_measrued also is none contiue
-                if z_measured[id] is None:
-                    continue
-                #else give some prop missed prop value that reduces value
+            #is_visvible_from_pose = self.is_visible(z_true[id][1], z_max[1])
+            is_visible_from_pose = True
+            if z_measured[id] is None:
+                if is_visible_from_pose:
+                    prop *= 0.3  # missed detection
                 else:
-                    prop*=0.02 # TODO decide if we will change this  # false detection
+                    continue
             else:
-                #if z measured is None
-                if z_measured[id] is None:
-                    prop*=0.2 # TODO decide if we will change this  # missed detection
-                #else use normal distribution
-                else:#else use normal distribution
-                    prop*= self.gaussian_pdf(z_measured[id][0], z_true[id][0], sigma_hit[0])
-                    prop*= self.gaussian_pdf(z_measured[id][1], z_true[id][1], sigma_hit[1]) 
-                    #TODO add bearing std deviation
+                prop *= self.gaussian_pdf(z_measured[id][0], z_true[id][0], sigma_hit[0])
+                #prop *= self.gaussian_pdf(z_measured[id][1], z_true[id][1], sigma_hit[1]) #TODO add bearing std deviation
         return prop
 
-    def p_range(self, z_measured, z_min, z_max):
+    def p_range(self, z_measured, z_min, z_max, sigma_hit):
         prop = 1
         for id in z_measured:
             if z_measured[id] is None:
                 continue
             measured_dist, measured_bearing = z_measured[id]
             prop*= self.uniform_pdf(measured_dist, z_min[0], z_max[0])
-            prop*= self.uniform_pdf(measured_bearing, z_min[1], z_max[1])
+            abs_bearing =  abs(measured_bearing) 
+            if abs_bearing >  z_max[1]:
+                prop*= self.uniform_pdf(z_min[1], z_min[1], z_max[1])*self.gaussian_pdf(abs_bearing - z_max[1], 0, sigma_hit[1])
+            else:
+                prop*= self.uniform_pdf(measured_bearing, z_min[1], z_max[1])
         return prop
  
     def observation_model_aruco(self,
         z_measured,
         x_t,
         m,
-        sigma_hit=[0.00483, None],   # meters (std deviation) TODO
-        z_min=[0.30,None],       # meters -- closest distance ArUco can be reliably detected
-        z_max=[5.00, None],       # meters -- farthest distance ArUco can be reliably detected TODO
+        sigma_hit=[0.00483, 0.014976488],   # meters (std deviation) TODO
+        z_min=[0.30,-0.34877],       # meters -- closest distance ArUco can be reliably detected
+        z_max=[5.00, 0.34877],       # meters -- farthest distance ArUco can be reliably detected TODO
         ):
         """
         Weight each particle by how well its implied distance to the landmark
@@ -123,10 +118,11 @@ class MCL:
         # TODO: rewrite
         z_true = self.true_z_for_landmarks(x_t, m)
     
-        p_range = self.p_range(z_measured, z_min, z_max)          # gate: is this pose even plausible?
+        #p_range = self.p_range(z_measured, z_min, z_max)          # gate: is this pose even plausible?
         p_hit = self.p_hit(z_measured, z_true, sigma_hit)  # how close is measurement to that pose's true distance?
 
-        weights = p_range * p_hit
+        #weights = p_range * p_hit
+        weights = p_hit
         return weights
     
     def measurement_model(self, z, x_t, m):
@@ -210,5 +206,5 @@ class MCL:
         "return estimate of pose as average of particles, or given particle list"
         if particles is None:
             particles = self.particles
-        return pcl.Particle.estimate_pose(particles)
+        return pcl.estimate_pose(particles)
     

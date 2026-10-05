@@ -5,11 +5,22 @@ import numpy as np
 import time
 from timeit import default_timer as timer
 import sys
+from mcl import MCL
+import local_map
+import os
+sys.path.append(
+    os.path.join(
+        os.path.dirname(__file__),
+        "../../Mirte/ku_mirte_python"
+    )
+)
+
+from ku_mirte import KU_Mirte
 
 
 # Flags
 showGUI = True  # Whether or not to open GUI windows
-onRobot = True  # Whether or not we are running on the Arlo robot
+onRobot = False  # Whether or not we are running on the Arlo robot
 
 
 def isRunningOnArlo():
@@ -25,8 +36,9 @@ if isRunningOnArlo():
 
 
 try:
-    import robot
-    onRobot = True
+    #import robot
+    onRobot = False
+
 except ImportError:
     print("selflocalize.py: robot module not present - forcing not running on Arlo!")
     onRobot = False
@@ -52,6 +64,11 @@ landmarks = {
     2: (300.0, 0.0)  # Coordinates for landmark 2
 }
 landmark_colors = [CRED, CGREEN] # Colors used when drawing the landmarks
+
+m = local_map.LocalMap(low=(-100.0, -250.0),
+        high=(500.0, 350.0))
+
+m.landmarks =[[[0.0,0.0],1],[[300.0,0.0],2]]
 
 
 
@@ -134,21 +151,25 @@ try:
 
     # Initialize particles
     num_particles = 1000
-    particles = initialize_particles(num_particles)
+    particles = initialize_particles(num_particles) #init prior
 
-    est_pose = particle.estimate_pose(particles) # The estimate of the robots current pose
+    aug_mcl = MCL(particles) 
+    est_pose = aug_mcl.estimate_pose()
+
+    #est_pose = particle.estimate_pose(particles) # The estimate of the robots current pose
 
     # Driving parameters
     velocity = 0.0 # cm/sec
     angular_velocity = 0.0 # radians/sec
 
     # Initialize the robot (XXX: You do this)
+    #mirte = KU_Mirte()
 
     # Allocate space for world map
     world = np.zeros((500,500,3), dtype=np.uint8)
 
     # Draw map
-    draw_world(est_pose, particles, world)
+    draw_world(est_pose, aug_mcl.particles, world)
 
     print("Opening and initializing camera")
     if isRunningOnArlo():
@@ -160,6 +181,7 @@ try:
 
     while True:
 
+        velocity = angular_velocity = 0.0
         # Move the robot according to user input (only for testing)
         action = cv2.waitKey(10)
         if action == ord('q'): # Quit
@@ -178,9 +200,8 @@ try:
             elif action == ord('d'): # Right
                 angular_velocity -= 0.2
 
+        u = [velocity, angular_velocity]
 
-
-        
         # Use motor controls to update particles
         # XXX: Make the robot drive
         # XXX: You do this
@@ -193,29 +214,35 @@ try:
         objectIDs, dists, angles = cam.detect_aruco_objects(colour)
         if not isinstance(objectIDs, type(None)):
             # List detected objects
+            z = {}
             for i in range(len(objectIDs)):
                 print("Object ID = ", objectIDs[i], ", Distance = ", dists[i], ", angle = ", angles[i])
                 # XXX: Do something for each detected object - remember, the same ID may appear several times
+                #build observation map 
+                if objectIDs[i] not in z:
+                    z[objectIDs[i]] = np.array([dists[i], angles[i]])
 
             # Compute particle weights
             # XXX: You do this
 
             # Resampling
             # XXX: You do this
+            aug_mcl.mcl(u,z,m)
 
             # Draw detected objects
             cam.draw_aruco_objects(colour)
         else:
-            # No observation - reset weights to uniform distribution
-            for p in particles:
+            # No observation - reset weights to uniform distribution  
+            aug_mcl.particles = np.array([aug_mcl.sample_motion_model_with_map(u, x_last, m) for x_last in aug_mcl.particles])
+            for p in aug_mcl.particles:
                 p.setWeight(1.0/num_particles)
 
     
-        est_pose = particle.estimate_pose(particles) # The estimate of the robots current pose
+        est_pose = aug_mcl.estimate_pose() # The estimate of the robots current pose
 
         if showGUI:
             # Draw map
-            draw_world(est_pose, particles, world)
+            draw_world(est_pose, aug_mcl.particles, world)
     
             # Show frame
             cv2.imshow(WIN_RF1, colour)

@@ -10,11 +10,13 @@ class GridOccupancyMap(object):
 
     """
     def __init__(self, low=(0, 0), high=(2, 2), res=0.05) -> None:
+        low,high=np.asarray(low,float),np.asarray(high,float)
+        if res<=0 or np.any(high<=low): raise ValueError("Invalid grid bounds/resolution")
         self.map_area = [low, high]    #a rectangular area    
         self.map_size = np.array([high[0]-low[0], high[1]-low[1]])
         self.resolution = res
 
-        self.n_grids = [ int(s//res) for s in self.map_size]
+        self.n_grids = [ int(np.ceil(s/res-1e-10)) for s in self.map_size]
 
         self.grid = np.zeros((self.n_grids[0], self.n_grids[1]), dtype=np.uint8)
 
@@ -24,6 +26,7 @@ class GridOccupancyMap(object):
         """
         find if the position is occupied or not. return if the queried pos is outside the map
         """
+        if not np.all(np.isfinite(pos)) or np.any(np.asarray(pos)<self.map_area[0]) or np.any(np.asarray(pos)>=self.map_area[1]): return 1
         indices = [int((pos[i] - self.map_area[0][i]) // self.resolution) for i in range(2)]
         for i, ind in enumerate(indices):
             if ind < 0 or ind >= self.n_grids[i]:
@@ -36,8 +39,8 @@ class GridOccupancyMap(object):
         generate a grid map with some circle shaped obstacles
         """
         origins = np.random.uniform(
-            low=self.map_area[0] + self.map_size[0]*0.2, 
-            high=self.map_area[0] + self.map_size[0]*0.8, 
+            low=self.map_area[0] + self.map_size*0.2, 
+            high=self.map_area[0] + self.map_size*0.8, 
             size=(n_obs, 2))
         radius = np.random.uniform(low=0.1, high=0.3, size=n_obs)
         #fill the grids by checking if the grid centroid is in any of the circle

@@ -1,3 +1,4 @@
+from aruco_compat import detect as detect_markers, estimate as estimate_markers
 # local_map.py
 #
 # Local 2D map for MIRTE using ArUco markers as reference poses for
@@ -11,10 +12,14 @@
 #   - Each ArUco marker is mounted flat on the FRONT face of its box.
 #   - The marker is horizontally centered on that face.
 #   - The visible/front face points toward MIRTE, so the box interior is
-#     chosen as the marker-normal direction with positive map-z.
+#     chosen as marker-local negative Z, rotated into the camera frame.
 #
 # Camera calibration is still approximate: distortion is assumed zero.
 
+import copy
+from geometry_utils import segment_rectangle_distance
+import ex5_config as cfg
+from ex5_config import BOX_CLEARANCE_MARGIN_M
 import os
 import sys
 import cv2
@@ -29,18 +34,18 @@ sys.path.append(
     )
 )
 
-from ku_mirte import KU_Mirte
+from robot_io import KU_Mirte
 
 
 # ---------------------------------------------------------------------------
 # Camera / ArUco calibration
 # ---------------------------------------------------------------------------
 
-ARUCO_MARKER_LENGTH_MM = 145.0
+ARUCO_MARKER_LENGTH_MM = cfg.ARUCO_MARKER_LENGTH_MM
 
-F = 609.9
-CX = 640.0 / 2.0
-CY = 480.0 / 2.0
+F = cfg.FOCAL_LENGTH_PX
+CX = cfg.IMAGE_WIDTH / 2.0
+CY = cfg.IMAGE_HEIGHT / 2.0
 
 INTRINSIC_MATRIX = np.array([
     [F,   0.0, CX],
@@ -60,9 +65,9 @@ ARUCO_DICT = cv2.aruco.getPredefinedDictionary(
 # ---------------------------------------------------------------------------
 
 # Measure these on the real setup and update if necessary.
-CAMERA_FORWARD_OFFSET_M = 0.14
-DEFAULT_BOX_WIDTH_M = 0.40
-DEFAULT_BOX_DEPTH_M = 0.25
+CAMERA_FORWARD_OFFSET_M = cfg.CAMERA_FORWARD_OFFSET_M
+DEFAULT_BOX_WIDTH_M = cfg.BOX_WIDTH_M
+DEFAULT_BOX_DEPTH_M = cfg.BOX_DEPTH_M
 
 CAMERA_OFFSET_FROM_ROBOT_CENTER = np.array(
     [0.0, CAMERA_FORWARD_OFFSET_M],
@@ -85,60 +90,58 @@ def marker_pose_to_box(
     width=DEFAULT_BOX_WIDTH_M,
     depth=DEFAULT_BOX_DEPTH_M
 ):
-    """
-    Convert one ArUco pose to an oriented rectangular box in the x-z map.
+    """Convert one ArUco pose to an oriented physical box in the x-z map.
 
-    tvec is the ArUco center relative to the camera.
-    rvec is the ArUco orientation relative to the camera.
+    IMPORTANT: this matches the existing Ex4 convention. The physical box
+    centre is reached from the ArUco plane with marker-local NEGATIVE Z:
 
-    The ArUco marker is assumed to be centered on the FRONT face.
+        center_camera_mm = tvec + R @ [0, 0, -depth_mm/2]
+
+    The previous AI-test version forced the box to marker +Z / positive map-z,
+    which is the sign that placed the box incorrectly in your physical setup.
     """
     tvec = np.asarray(tvec, dtype=float).reshape(3)
     rvec = np.asarray(rvec, dtype=float).reshape(3)
 
-    marker_camera_m = tvec / 1000.0
+    if width <= 0 or depth <= 0 or not np.all(np.isfinite([width,depth])):
+        raise ValueError("Positive finite box dimensions required.")
+    if not np.all(np.isfinite(tvec)) or not np.all(np.isfinite(rvec)) or tvec[2] <= 0:
+        raise ValueError("Invalid marker pose.")
     rotation, _ = cv2.Rodrigues(rvec)
 
-    # Marker-local +Z axis expressed in camera coordinates.
-    marker_normal_3d = rotation[:, 2]
-
-    # Project marker normal to the floor plane (camera x-z).
-    normal_xz = np.array(
-        [marker_normal_3d[0], marker_normal_3d[2]],
-        dtype=float
-    )
-
-    if np.linalg.norm(normal_xz) < 1e-6:
-        raise ValueError(
-            "ArUco orientation is degenerate in the x-z plane."
-        )
-
-    depth_direction = _unit(normal_xz)
-
-    # For this exercise the marker is on the front face visible from MIRTE.
-    # Therefore the box interior must point generally away from the camera.
-    if depth_direction[1] < 0.0:
-        depth_direction = -depth_direction
-
-    # Perpendicular unit vector along box width.
-    width_direction = np.array(
-        [depth_direction[1], -depth_direction[0]],
-        dtype=float
-    )
-
+    marker_camera_m = tvec / 1000.0
     marker_position = np.array(
         [marker_camera_m[0], marker_camera_m[2]],
         dtype=float
     ) + np.asarray(camera_offset, dtype=float)
 
-    box_center = (
-        marker_position
-        + depth_direction * (depth / 2.0)
+    # Same negative offset as current Ex4 local_map.py.
+    obstacle_offset_3d_mm = np.array([
+        0.0,
+        0.0,
+        -(float(depth) * 1000.0) / 2.0,
+    ])
+    box_offset_camera_mm = rotation @ obstacle_offset_3d_mm
+    box_offset_xz = np.array([
+        box_offset_camera_mm[0] / 1000.0,
+        box_offset_camera_mm[2] / 1000.0,
+    ])
+
+    box_center = marker_position + box_offset_xz
+
+    if np.linalg.norm(box_offset_xz) < 1e-9:
+        raise ValueError("ArUco orientation is degenerate in the x-z plane.")
+
+    depth_direction = _unit(box_offset_xz)
+    width_direction = np.array(
+        [depth_direction[1], -depth_direction[0]],
+        dtype=float
     )
 
     half_width = width / 2.0
     half_depth = depth / 2.0
 
+    # Marker is at the centre of the front face under this convention.
     front_center = box_center - depth_direction * half_depth
     back_center = box_center + depth_direction * half_depth
 
@@ -149,9 +152,7 @@ def marker_pose_to_box(
         back_center - width_direction * half_width
     ])
 
-    theta_rad = float(
-        np.arctan2(depth_direction[0], depth_direction[1])
-    )
+    theta_rad = float(np.arctan2(depth_direction[0], depth_direction[1]))
 
     return {
         "marker_position": marker_position,
@@ -165,7 +166,8 @@ def marker_pose_to_box(
         "depth": float(depth),
         "rvec": rvec.copy(),
         "tvec_mm": tvec.copy(),
-        "rotation_matrix": rotation
+        "rotation_matrix": rotation,
+        "box_offset_camera_mm": box_offset_camera_mm.copy(),
     }
 
 
@@ -186,6 +188,8 @@ class LocalMap:
     def __init__(
         self,
         landmarks=None,
+        clearance_margin=BOX_CLEARANCE_MARGIN_M,
+        landmark_radius=0.20,
         mirte_radius=0.22,
         camera_offset=CAMERA_OFFSET_FROM_ROBOT_CENTER,
         low=(-2.0, 0.0),
@@ -193,9 +197,14 @@ class LocalMap:
         res=0.10,
         box_dimensions=None
     ):
-        self.landmarks = [] if landmarks is None else landmarks
+        if landmarks:
+            raise ValueError("Point-only obstacles lack box geometry. Use set_boxes with complete rectangles.")
+        self.landmarks = []
         self.boxes = {}
+        self.clearance_margin = float(clearance_margin)
+        if self.clearance_margin < 0: raise ValueError("Negative clearance margin")
 
+        self.landmark_radius = float(landmark_radius)
         self.mirte_radius = float(mirte_radius)
         self.camera_offset = np.asarray(camera_offset, dtype=float)
 
@@ -204,6 +213,7 @@ class LocalMap:
             np.asarray(high, dtype=float)
         ]
         self.resolution = float(res)
+        self.extent = [float(low[0]), float(high[0]), float(low[1]), float(high[1])]
 
         # Optional per-ID dimensions:
         # {7: (width, depth), 3: (width, depth)}
@@ -216,11 +226,22 @@ class LocalMap:
         )
 
     def update(self, mirte):
-        self.landmarks = self.get_map_from_mirte(mirte)
+        self.get_map_from_mirte(mirte)
 
     # -----------------------------------------------------------------------
     # Public geometry API
     # -----------------------------------------------------------------------
+
+    def set_boxes(self, boxes):
+        self.boxes = copy.deepcopy(boxes)
+        self.landmarks = [[box["box_center"].copy(), int(i)] for i,box in sorted(self.boxes.items())]
+
+    def segment_is_free(self, a, b):
+        a,b=np.asarray(a,float),np.asarray(b,float)
+        if a.shape!=(2,) or b.shape!=(2,) or not np.all(np.isfinite([a,b])): return False
+        if np.any(a<self.map_area[0]) or np.any(a>self.map_area[1]) or np.any(b<self.map_area[0]) or np.any(b>self.map_area[1]): return False
+        limit=self.mirte_radius+self.clearance_margin
+        return all(segment_rectangle_distance(a,b,box)>limit for box in self.boxes.values())
 
     def get_visible_box_ids(self):
         return sorted(self.boxes.keys())
@@ -265,13 +286,14 @@ class LocalMap:
         MIRTE is approximated as a circle and boxes as oriented rectangles.
         """
         pos = np.asarray(pos, dtype=float)
+        if pos.shape != (2,) or not np.all(np.isfinite(pos)): return 1
 
         if np.any(pos < self.map_area[0]) or np.any(pos > self.map_area[1]):
             return 1
 
         for marker_id in self.get_visible_box_ids():
             distance = self.distance_to_box(pos, marker_id)
-            if distance is not None and distance <= self.mirte_radius:
+            if distance is not None and distance <= self.mirte_radius + self.clearance_margin:
                 return 1
 
         return 0
@@ -282,14 +304,16 @@ class LocalMap:
 
     def get_map_from_mirte(self, mirte):
         landmark_map = []
-        self.boxes = {}
+        self.set_boxes({})
 
         img = mirte.get_image_compressed()
+        if img is not None and (img.shape[:2] != (cfg.IMAGE_HEIGHT,cfg.IMAGE_WIDTH)):
+            raise ValueError("Camera image must match the calibrated 640x480 resolution.")
         if img is None:
             print("No camera image received.")
             return landmark_map
 
-        corners, ids, _ = cv2.aruco.detectMarkers(
+        corners, ids, _ = detect_markers(
             img,
             ARUCO_DICT
         )
@@ -298,7 +322,7 @@ class LocalMap:
             print("No ArUco landmarks detected.")
             return landmark_map
 
-        rvecs, tvecs, _ = cv2.aruco.estimatePoseSingleMarkers(
+        rvecs, tvecs, _ = estimate_markers(
             corners,
             ARUCO_MARKER_LENGTH_MM,
             INTRINSIC_MATRIX,
@@ -346,7 +370,8 @@ class LocalMap:
                 marker_id
             ])
 
-        return landmark_map
+        self.set_boxes(self.boxes)
+        return self.landmarks
 
     # -----------------------------------------------------------------------
     # Visualization

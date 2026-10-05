@@ -1,5 +1,10 @@
 # Shared RRT, mapping and driving functions for MIRTE.
 
+import copy
+import time
+import cv2
+from aruco_measurements import observe_mirte
+import ex5_config as cfg
 import math
 import os
 import sys
@@ -196,6 +201,8 @@ class RRT:
     def check_collision_free(self, node):
         if node is None:
             return False
+        if hasattr(self.map,"segment_is_free"):
+            return all(self.map.segment_is_free(a,b) for a,b in zip(node.path[:-1],node.path[1:])) and not self.map.in_collision(node.pos)
         for p in node.path:
             if self.map.in_collision(np.array(p)):
                 return False
@@ -203,74 +210,40 @@ class RRT:
 
 
 def make_map(mirte):
-    """
-    Make a local map from two camera frames.
-
-    An ArUco ID must be visible in both frames. This removes many
-    one-frame false detections, such as an unexpected ID 120.
-    Positions from the two frames are averaged.
-    """
-    world_map = local_map.LocalMap(
-        low=(-1.5, 0.0),
-        high=(1.5, 3.0)
-    )
-
-    first = world_map.get_map_from_mirte(mirte)
-    second = world_map.get_map_from_mirte(mirte)
-
-    first_dict = {
-        int(marker_id): np.asarray(position, dtype=float)
-        for position, marker_id in first
-    }
-    second_dict = {
-        int(marker_id): np.asarray(position, dtype=float)
-        for position, marker_id in second
-    }
-
-    confirmed = []
-
-    for marker_id in first_dict.keys() & second_dict.keys():
-        position = (
-            first_dict[marker_id]
-            + second_dict[marker_id]
-        ) / 2.0
-
-        confirmed.append([
-            position,
-            marker_id
-        ])
-
-    world_map.landmarks = confirmed
+    """Two stationary captures; one consistent, confirmed rectangle map."""
+    world_map=local_map.LocalMap(low=(-1.5,0),high=(1.5,3))
+    world_map.get_map_from_mirte(mirte);first=copy.deepcopy(world_map.boxes)
+    time.sleep(cfg.CAMERA_SETTLE_SECONDS)
+    world_map.get_map_from_mirte(mirte);second=copy.deepcopy(world_map.boxes)
+    boxes={}
+    for i in first.keys() & second.keys():
+        a,b=first[i],second[i]
+        if np.linalg.norm(a['marker_position']-b['marker_position'])>.15:continue
+        relative=a['rotation_matrix'].T@b['rotation_matrix']
+        angle=math.acos(float(np.clip((np.trace(relative)-1)/2,-1,1)))
+        if angle>math.radians(20): continue
+        matrix=(a['rotation_matrix']+b['rotation_matrix'])/2
+        u,_,vt=np.linalg.svd(matrix)
+        correction=np.eye(3);correction[2,2]=np.linalg.det(u@vt)
+        rotation=u@correction@vt
+        rvec,_=cv2.Rodrigues(rotation)
+        box=local_map.marker_pose_to_box((a['tvec_mm']+b['tvec_mm'])/2,rvec,
+            world_map.camera_offset,width=a['width'],depth=a['depth'])
+        box['id']=i;boxes[i]=box
+    world_map.set_boxes(boxes)
     return world_map
 
 
-def get_aruco_observations(mirte, sensor_map):
-    """
-    Take a fresh camera measurement.
-
-    Returns:
-        [(marker_id, distance, bearing), ...]
-    """
-    detected = sensor_map.get_map_from_mirte(mirte)
-    observations = []
-
-    for position, marker_id in detected:
-        x, z = np.asarray(position, dtype=float)
-
-        observations.append(
-            (
-                int(marker_id),
-                float(math.hypot(x, z)),
-                float(math.atan2(-x, z)),
-            )
-        )
-
-    return observations
-
+def get_aruco_observations(mirte,sensor_map=None):
+    """Fresh MARKER-centre measurements without mutating the frozen map."""
+    allowed=None if sensor_map is None else sensor_map.get_visible_box_ids()
+    return observe_mirte(mirte,allowed_ids=allowed)
 
 
 def direct_path_is_free(world_map, start, goal, step=0.05):
     """Check a straight line from start to goal."""
+    if hasattr(world_map,"segment_is_free"):
+        return world_map.segment_is_free(start,goal)
     start = np.asarray(start, dtype=float)
     goal = np.asarray(goal, dtype=float)
 
@@ -327,6 +300,8 @@ def plan_path(world_map, goal):
     start = np.array([0.0, 0.0])
     goal = np.asarray(goal, dtype=float)
 
+    if world_map.in_collision(start) or world_map.in_collision(goal):
+        print("Start or goal is in collision."); return None
     if np.linalg.norm(goal) < 0.03:
         return [start, goal]
 
@@ -386,38 +361,17 @@ def plan_path(world_map, goal):
     )
 
 
-def drive_path(mirte, world_map, path):
-    """
-    Follow one local path.
-
-    A fresh MCL instance is used for this local movement.
-    After the movement, exploration takes a new camera map and can plan again.
-    """
-    localizer = MCL(
-        world_map,
-        number_of_particles=300
-    )
-
-    fixed_landmarks = list(world_map.landmarks)
-
-    def observations():
-        return get_aruco_observations(
-            mirte,
-            world_map
-        )
-
-    return follow_path(
-        path,
-        mirte,
-        localizer=localizer,
-        get_observations=observations,
-        landmarks=fixed_landmarks,
-    )
+def drive_path(mirte,world_map,path):
+    """Local frame is FIXED at this route's start; robot starts at (0,0,0)."""
+    markers={i:box['marker_position'].copy() for i,box in world_map.boxes.items()}
+    localizer=MCL(markers,number_of_particles=1500,initial_pose=(0,0,0),initial_std=(0,0,0))
+    def observations():return get_aruco_observations(mirte,world_map)
+    return follow_path(path,mirte,localizer=localizer,get_observations=observations,world_map=world_map)
 
 
 def save_path_plot(world_map, path, filename):
     """Save the most recently planned local path."""
-    plot_local_map(world_map.landmarks)
+    plot_local_map(world_map)
     plot_path(
         path,
         start=path[0],

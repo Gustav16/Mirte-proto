@@ -1,3 +1,4 @@
+from aruco_compat import detect as detect_markers, estimate as estimate_markers
 import cv2  # Import the OpenCV library
 import numpy as np
 import time
@@ -66,6 +67,7 @@ class CaptureThread(threading.Thread):
     
     def __init__(self, cam, framebuffer):
         threading.Thread.__init__(self)
+        self.daemon=True
         self.cam = cam
         self.framebuffer = framebuffer
         self.terminateThreadEvent = threading.Event()
@@ -126,6 +128,7 @@ class Camera(object):
              robottype - specify which robot you are using in order to use the correct camera calibration. 
                          Supported types: arlo, frindo, scribbler, macbookpro"""
 
+        global gstreamerCameraFound
         print("robottype =", robottype)
         self.useCaptureThread = useCaptureThread
 
@@ -286,17 +289,24 @@ class Camera(object):
             self.capturethread.start()
             time.sleep(0.75)
 
+    def close(self):
+        self.terminateCaptureThread()
+        cam=getattr(self,"cam",None)
+        if cam is not None:
+            if hasattr(cam,"stop"): cam.stop()
+            if hasattr(cam,"release"): cam.release()
+            elif hasattr(cam,"close"): cam.close()
+        self.cam=None
+
     def __del__(self):
+        try: self.close()
+        except Exception: pass
 
-        # TODO: Add support for pycamera2
-        if piCameraFound or piCamera2Found:
-            self.cam.close()
-
-        
     def terminateCaptureThread(self):
-        if self.useCaptureThread:
+        if getattr(self,"useCaptureThread",False) and hasattr(self,"capturethread"):
             self.capturethread.stop()
-            self.capturethread.join()
+            self.capturethread.join(timeout=2)
+            if self.capturethread.is_alive(): raise RuntimeError("Camera capture thread did not terminate")
         
     def get_capture(self):
         """Access to the internal camera object for advanced control of the camera."""
@@ -313,7 +323,7 @@ class Camera(object):
             img = self.framebuffer.get_frame()
             
             if img is None:
-                img = np.array((self.imageSize[0], self.imageSize[1], 3), dtype=np.uint8)
+                return None
                         
         else:
 
@@ -350,8 +360,14 @@ class Camera(object):
 
         If no object is detected, the returned variables are set to None.
         """
-        self.aruco_corners, self.ids, rejectedImgPoints = cv2.aruco.detectMarkers(img, self.arucoDict)
-        self.rvecs, self.tvecs, _objPoints = cv2.aruco.estimatePoseSingleMarkers(self.aruco_corners, self.arucoMarkerLength, self.intrinsic_matrix, self.distortion_coeffs)
+        if img is None:
+            self.ids=None
+            return None,None,None
+        self.aruco_corners, self.ids, rejectedImgPoints = detect_markers(img, self.arucoDict)
+        if self.ids is None:
+            self.rvecs,self.tvecs=None,None
+            return None,None,None
+        self.rvecs, self.tvecs, _objPoints = estimate_markers(self.aruco_corners, self.arucoMarkerLength, self.intrinsic_matrix, self.distortion_coeffs)
 
 
         if not isinstance(self.ids, type(None)):
@@ -360,22 +376,8 @@ class Camera(object):
             dists = dists.reshape((dists.shape[0],))
             ids = self.ids.reshape((self.ids.shape[0],))
 
-            # Compute angles
-            angles = np.zeros(dists.shape, dtype=dists.dtype)
-            for i in range(dists.shape[0]):
-                tobj = self.tvecs[i] * 100 / dists[i]
-                zaxis = np.zeros(tobj.shape, dtype=tobj.dtype)
-                zaxis[0,-1] = 1
-                xaxis = np.zeros(tobj.shape, dtype=tobj.dtype)
-                xaxis[0,0] = 1
-
-                # We want the horizontal angle so project tobjt onto the x-z plane
-                tobj_xz = tobj
-                tobj_xz[0,1] = 0
-                # Should the sign be clockwise or counter-clockwise (left or right)?
-                # In this version it is positive to the left as seen from the camera.
-                direction = -1*np.sign(tobj_xz[0,0])  # The same as np.sign(np.dot(tobj, xaxis.T))
-                angles[i] = direction * np.arccos(np.dot(tobj_xz, zaxis.T))
+            # Horizontal bearing: ignore height before angular normalization.
+            angles = np.arctan2(-self.tvecs[:,0,0],self.tvecs[:,0,2])
         else:
             dists = None
             ids = None
@@ -561,4 +563,4 @@ if (__name__=='__main__'):
     cv2.destroyAllWindows()
 
     # Clean-up capture thread
-    cam.terminateCaptureThread()
+    cam.close()

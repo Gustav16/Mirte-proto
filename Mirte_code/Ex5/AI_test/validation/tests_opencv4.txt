@@ -1,0 +1,42 @@
+test_01_all_modules_import (__main__.Tests.test_01_all_modules_import) ... ok
+test_02_mcl_prior_is_not_localization (__main__.Tests.test_02_mcl_prior_is_not_localization) ... ok
+test_03_mcl_preserves_weights (__main__.Tests.test_03_mcl_preserves_weights) ... ok
+test_04_weighted_pose_without_observations (__main__.Tests.test_04_weighted_pose_without_observations) ... ok
+test_05_wrap_and_heading_convention (__main__.Tests.test_05_wrap_and_heading_convention) ... ok
+test_06_stationary_sweep (__main__.Tests.test_06_stationary_sweep) ... ok
+test_07_invalid_mcl_inputs (__main__.Tests.test_07_invalid_mcl_inputs) ... ok
+test_08_opencv_detection (__main__.Tests.test_08_opencv_detection) ... ok
+test_09_blank_and_wrong_resolution (__main__.Tests.test_09_blank_and_wrong_resolution) ... ok
+test_10_camera_geometry (__main__.Tests.test_10_camera_geometry) ... ok
+test_11_buffer_ownership (__main__.Tests.test_11_buffer_ownership) ... ok
+test_12_grid_dimensions_and_boundaries (__main__.Tests.test_12_grid_dimensions_and_boundaries) ... ok
+test_13_zero_pointmass_motion (__main__.Tests.test_13_zero_pointmass_motion) ... ok
+test_14_stateless_mirte_branches (__main__.Tests.test_14_stateless_mirte_branches) ... ok
+test_15_particle_von_mises_wrap (__main__.Tests.test_15_particle_von_mises_wrap) ... ok
+test_16_exact_segment_collision (__main__.Tests.test_16_exact_segment_collision) ... ok
+test_17_tilted_passage_margin (__main__.Tests.test_17_tilted_passage_margin) ... ok
+test_18_passage_and_target (__main__.Tests.test_18_passage_and_target) ... ok
+test_19_two_frame_map_consistency (__main__.Tests.test_19_two_frame_map_consistency) ... ok
+test_20_observation_does_not_mutate_map (__main__.Tests.test_20_observation_does_not_mutate_map) ... ok
+test_21_rrt_detour_valid (__main__.Tests.test_21_rrt_detour_valid) ... ok
+test_22_bad_path_rejected (__main__.Tests.test_22_bad_path_rejected) ... ok
+test_23_sonar_fails_closed (__main__.Tests.test_23_sonar_fails_closed) ... ok
+test_24_controller_without_markers (__main__.Tests.test_24_controller_without_markers) ... ok
+test_25_controller_with_field_of_view (__main__.Tests.test_25_controller_with_field_of_view) ... ok
+test_26_controller_with_motor_drift (__main__.Tests.test_26_controller_with_motor_drift) ... ok
+test_27_local_path_integration (__main__.Tests.test_27_local_path_integration) ... ok
+test_28_local_path_markers_lost (__main__.Tests.test_28_local_path_markers_lost) ... ok
+test_29_plot_and_json_geometry (__main__.Tests.test_29_plot_and_json_geometry) ... ok
+test_30_camera_horizontal_bearing (__main__.Tests.test_30_camera_horizontal_bearing) ... ok
+test_31_frozen_camera_is_not_fresh_evidence (__main__.Tests.test_31_frozen_camera_is_not_fresh_evidence) ... ok
+test_32_initial_search_rotation (__main__.Tests.test_32_initial_search_rotation) ... ok
+test_33_different_start_positions (__main__.Tests.test_33_different_start_positions) ... ok
+
+----------------------------------------------------------------------
+Ran 33 tests in 3.188s
+
+OK
+Camera.py: picamera module not available
+Camera.py: picamera2 module not available
+Camera.py: Using OpenCV interface instead
+Saved map data to: /tmp/tmp3un66s_j/map.json

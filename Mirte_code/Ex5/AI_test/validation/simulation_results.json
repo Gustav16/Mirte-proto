@@ -1,0 +1,301 @@
+{
+  "stationary": {
+    "seeds": 100,
+    "median_error_m": 0.00878846798090846,
+    "max_error_m": 0.025276805962451035,
+    "over_10cm": 0
+  },
+  "controller_ideal": [
+    {
+      "seed": 0,
+      "reported_success": true,
+      "physical_simulated_goal_error_m": 0.00375701710995154,
+      "translations": 16,
+      "rotations": 44
+    },
+    {
+      "seed": 1,
+      "reported_success": true,
+      "physical_simulated_goal_error_m": 0.007801567729297662,
+      "translations": 17,
+      "rotations": 44
+    },
+    {
+      "seed": 2,
+      "reported_success": true,
+      "physical_simulated_goal_error_m": 0.0038767569273169826,
+      "translations": 17,
+      "rotations": 44
+    },
+    {
+      "seed": 3,
+      "reported_success": true,
+      "physical_simulated_goal_error_m": 0.004383292550008629,
+      "translations": 17,
+      "rotations": 44
+    },
+    {
+      "seed": 4,
+      "reported_success": true,
+      "physical_simulated_goal_error_m": 0.004287617988225599,
+      "translations": 17,
+      "rotations": 44
+    },
+    {
+      "seed": 5,
+      "reported_success": true,
+      "physical_simulated_goal_error_m": 0.003930700276763076,
+      "translations": 17,
+      "rotations": 44
+    },
+    {
+      "seed": 6,
+      "reported_success": true,
+      "physical_simulated_goal_error_m": 0.004545356442605475,
+      "translations": 16,
+      "rotations": 44
+    },
+    {
+      "seed": 7,
+      "reported_success": true,
+      "physical_simulated_goal_error_m": 0.005271681953384501,
+      "translations": 16,
+      "rotations": 44
+    },
+    {
+      "seed": 8,
+      "reported_success": true,
+      "physical_simulated_goal_error_m": 0.006893957642995107,
+      "translations": 17,
+      "rotations": 44
+    },
+    {
+      "seed": 9,
+      "reported_success": true,
+      "physical_simulated_goal_error_m": 0.008090335001179748,
+      "translations": 16,
+      "rotations": 44
+    },
+    {
+      "seed": 10,
+      "reported_success": true,
+      "physical_simulated_goal_error_m": 0.005679738768945841,
+      "translations": 17,
+      "rotations": 44
+    },
+    {
+      "seed": 11,
+      "reported_success": true,
+      "physical_simulated_goal_error_m": 0.005065200587847951,
+      "translations": 16,
+      "rotations": 44
+    },
+    {
+      "seed": 12,
+      "reported_success": true,
+      "physical_simulated_goal_error_m": 0.004751530950982943,
+      "translations": 17,
+      "rotations": 44
+    },
+    {
+      "seed": 13,
+      "reported_success": true,
+      "physical_simulated_goal_error_m": 0.0044830997807044585,
+      "translations": 16,
+      "rotations": 44
+    },
+    {
+      "seed": 14,
+      "reported_success": true,
+      "physical_simulated_goal_error_m": 0.004641364345183841,
+      "translations": 16,
+      "rotations": 44
+    },
+    {
+      "seed": 15,
+      "reported_success": true,
+      "physical_simulated_goal_error_m": 0.005800310356604242,
+      "translations": 16,
+      "rotations": 44
+    },
+    {
+      "seed": 16,
+      "reported_success": true,
+      "physical_simulated_goal_error_m": 0.0025907011203556464,
+      "translations": 17,
+      "rotations": 44
+    },
+    {
+      "seed": 17,
+      "reported_success": true,
+      "physical_simulated_goal_error_m": 0.004364332508770589,
+      "translations": 16,
+      "rotations": 44
+    },
+    {
+      "seed": 18,
+      "reported_success": true,
+      "physical_simulated_goal_error_m": 0.005234314866581464,
+      "translations": 17,
+      "rotations": 44
+    },
+    {
+      "seed": 19,
+      "reported_success": true,
+      "physical_simulated_goal_error_m": 0.006907595176361461,
+      "translations": 16,
+      "rotations": 44
+    }
+  ],
+  "controller_10percent_drift": [
+    {
+      "seed": 0,
+      "reported_success": true,
+      "physical_simulated_goal_error_m": 0.0411298530840239,
+      "translations": 18,
+      "rotations": 47
+    },
+    {
+      "seed": 1,
+      "reported_success": true,
+      "physical_simulated_goal_error_m": 0.03862735120617819,
+      "translations": 18,
+      "rotations": 47
+    },
+    {
+      "seed": 2,
+      "reported_success": true,
+      "physical_simulated_goal_error_m": 0.04000750735666964,
+      "translations": 18,
+      "rotations": 47
+    },
+    {
+      "seed": 3,
+      "reported_success": true,
+      "physical_simulated_goal_error_m": 0.03949519828040586,
+      "translations": 18,
+      "rotations": 47
+    },
+    {
+      "seed": 4,
+      "reported_success": true,
+      "physical_simulated_goal_error_m": 0.03789295299033711,
+      "translations": 18,
+      "rotations": 47
+    },
+    {
+      "seed": 5,
+      "reported_success": true,
+      "physical_simulated_goal_error_m": 0.03936388354733109,
+      "translations": 18,
+      "rotations": 47
+    },
+    {
+      "seed": 6,
+      "reported_success": true,
+      "physical_simulated_goal_error_m": 0.04190012489700463,
+      "translations": 18,
+      "rotations": 47
+    },
+    {
+      "seed": 7,
+      "reported_success": false,
+      "physical_simulated_goal_error_m": 0.03842960824726266,
+      "translations": 18,
+      "rotations": 47
+    },
+    {
+      "seed": 8,
+      "reported_success": true,
+      "physical_simulated_goal_error_m": 0.03903017171585661,
+      "translations": 18,
+      "rotations": 47
+    },
+    {
+      "seed": 9,
+      "reported_success": true,
+      "physical_simulated_goal_error_m": 0.03713740188432667,
+      "translations": 18,
+      "rotations": 47
+    },
+    {
+      "seed": 10,
+      "reported_success": true,
+      "physical_simulated_goal_error_m": 0.03916841346707064,
+      "translations": 18,
+      "rotations": 47
+    },
+    {
+      "seed": 11,
+      "reported_success": true,
+      "physical_simulated_goal_error_m": 0.03786014096492585,
+      "translations": 18,
+      "rotations": 47
+    },
+    {
+      "seed": 12,
+      "reported_success": true,
+      "physical_simulated_goal_error_m": 0.04076849592882141,
+      "translations": 18,
+      "rotations": 47
+    },
+    {
+      "seed": 13,
+      "reported_success": true,
+      "physical_simulated_goal_error_m": 0.03892546141479453,
+      "translations": 18,
+      "rotations": 47
+    },
+    {
+      "seed": 14,
+      "reported_success": true,
+      "physical_simulated_goal_error_m": 0.03829520635763653,
+      "translations": 18,
+      "rotations": 47
+    },
+    {
+      "seed": 15,
+      "reported_success": true,
+      "physical_simulated_goal_error_m": 0.04080502068337758,
+      "translations": 18,
+      "rotations": 47
+    },
+    {
+      "seed": 16,
+      "reported_success": true,
+      "physical_simulated_goal_error_m": 0.03988878812744657,
+      "translations": 18,
+      "rotations": 47
+    },
+    {
+      "seed": 17,
+      "reported_success": true,
+      "physical_simulated_goal_error_m": 0.043396092516478336,
+      "translations": 18,
+      "rotations": 47
+    },
+    {
+      "seed": 18,
+      "reported_success": false,
+      "physical_simulated_goal_error_m": 0.03913324937893488,
+      "translations": 18,
+      "rotations": 47
+    },
+    {
+      "seed": 19,
+      "reported_success": true,
+      "physical_simulated_goal_error_m": 0.04059977600521148,
+      "translations": 18,
+      "rotations": 47
+    }
+  ],
+  "assumptions": "Synthetic planar observations with horizontal FOV; instantaneous blocking moves; Front marker faces limited to 75-degree incidence. Occlusion and camera staleness not modeled.",
+  "ideal_summary": {
+    "confirmed": 20,
+    "false_successes": 0
+  },
+  "drift_summary": {
+    "confirmed": 18,
+    "false_successes": 0
+  }
+}

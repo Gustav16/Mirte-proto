@@ -20,7 +20,7 @@ sys.path.append(
     )
 )
 
-from ku_mirte import KU_Mirte
+from robot_io import KU_Mirte
 from local_map import LocalMap
 
 
@@ -46,45 +46,30 @@ GRID_STEP = 0.25  # 25 cm
 # --------------------------------------------------
 
 def plot_local_map(landmarks):
-    plt.clf()
-    ax = plt.gca()
-
-    # Mirte position
-    ax.add_patch(Circle((0, 0), MIRTE_RADIUS, color='blue', alpha=0.3))
-    plt.scatter(0, 0)
-    plt.text(0, 0, "Mirte", fontsize=10)
-
-    # Landmarks
-    for position, landmark_id in landmarks:
-        x, z = position
-
-        ax.add_patch(Circle((x, z), LANDMARK_RADIUS, color='red', alpha=0.2))
-        plt.scatter(x, z)
-        plt.text(
-            x,
-            z,
-            f"ID {landmark_id}",
-            fontsize=10
-        )
-
-    plt.axhline(0, linewidth=1)
-    plt.axvline(0, linewidth=1)
-
-    plt.xlabel("x (m)")
-    plt.ylabel("z (m)")
-    plt.title("Local Landmark Map")
-
-    # Fixed local map area, gridlines every GRID_STEP meters
-    plt.xlim(*MAP_XLIM)
-    plt.ylim(*MAP_YLIM)
-    ax.set_xticks(np.arange(MAP_XLIM[0], MAP_XLIM[1] + 1e-9, GRID_STEP))
-    ax.set_yticks(np.arange(MAP_YLIM[0], MAP_YLIM[1] + 1e-9, GRID_STEP))
-    plt.grid(True)
-
-    # Equal geometric scale
-    ax.set_aspect("equal", adjustable="box")
-
-    plt.pause(0.01)
+    """Plot authoritative rectangles and their robot-clearance boundaries."""
+    plt.clf();ax=plt.gca()
+    if hasattr(landmarks,"boxes"):
+        from matplotlib.patches import Polygon
+        from matplotlib.path import Path as PlotPath
+        world_map=landmarks
+        world_map.draw_map()
+        for i,box in world_map.boxes.items():
+            ax.add_patch(Polygon(box["corners"],color="red",alpha=.25))
+            # Rounded rectangle inflation via level contour of exact distance.
+            center=box["box_center"];r=world_map.mirte_radius+world_map.clearance_margin
+            span=np.linalg.norm([box["width"],box["depth"]])/2+r+.05
+            xs=np.linspace(center[0]-span,center[0]+span,70);zs=np.linspace(center[1]-span,center[1]+span,70)
+            dist=np.array([[world_map.distance_to_box([x,z],i) for x in xs] for z in zs])
+            ax.contour(xs,zs,dist,levels=[r],colors="red",linestyles="dashed")
+        radius=world_map.mirte_radius
+    else:
+        radius=MIRTE_RADIUS
+        for position,i in landmarks:
+            ax.add_patch(Circle(position,LANDMARK_RADIUS,color="red",alpha=.2));ax.text(*position,f"ID {i}")
+        ax.set_xlim(*MAP_XLIM);ax.set_ylim(*MAP_YLIM)
+    ax.add_patch(Circle((0,0),radius,color="blue",alpha=.3))
+    ax.set_xlabel("x (m)");ax.set_ylabel("z (m)");ax.set_aspect("equal");ax.grid(True)
+    ax.set_title("Local boxes and robot-clearance boundary")
 
 
 def plot_path(path, start=None, goal=None):
@@ -112,21 +97,19 @@ def plot_path(path, start=None, goal=None):
 # Save map
 # --------------------------------------------------
 
-def save_map_json(landmarks, filename):
-    data = []
-
-    for position, landmark_id in landmarks:
-        x, z = position
-
-        data.append({
-            "id": int(landmark_id),
-            "x_m": float(x),
-            "z_m": float(z)
-        })
-
-    with open(filename, "w") as f:
-        json.dump(data, f, indent=4)
-
+def save_map_json(landmarks,filename):
+    if hasattr(landmarks,"boxes"):
+        def encode(value):
+            if isinstance(value,np.ndarray): return value.tolist()
+            if isinstance(value,np.generic): return value.item()
+            raise TypeError(type(value).__name__)
+        data={"frame":"robot centre at capture; x right, z forward; metres",
+              "robot_radius_m":landmarks.mirte_radius,"clearance_margin_m":landmarks.clearance_margin,
+              "boxes":landmarks.boxes}
+        with open(filename,"w") as f: json.dump(data,f,indent=2,default=encode)
+    else:
+        data=[{"id":int(i),"x_m":float(p[0]),"z_m":float(p[1])} for p,i in landmarks]
+        with open(filename,"w") as f: json.dump(data,f,indent=2)
     print(f"Saved map data to: {filename}")
 
 
@@ -177,7 +160,7 @@ if __name__ == "__main__":
 
             print(local_map.landmarks)
 
-            plot_local_map(local_map.landmarks)
+            plot_local_map(local_map)
 
             time.sleep(0.3)
 
@@ -186,7 +169,7 @@ if __name__ == "__main__":
         print("\nSaving final map...")
 
         save_map_json(
-            local_map.landmarks,
+            local_map,
             JSON_PATH
         )
 

@@ -14,7 +14,7 @@ sys.path.append(
     )
 )
 
-from ku_mirte import KU_Mirte
+from robot_io import KU_Mirte
 
 
 
@@ -237,8 +237,7 @@ def explore_once(
         return True
 
     global_segment = transform_local_path(path, drawing_pose)
-    path_history.extend(global_segment[1:])
-    update_drawing_pose(drawing_pose, path)
+    # Record only completed segments; stopped routes have unknown physical endpoint.
 
     print(
         "Following complete route to passage. "
@@ -247,13 +246,19 @@ def explore_once(
 
     reached = drive_path(mirte, world_map, path)
 
+    if reached:
+        path_history.extend(global_segment[1:])
+        drawing_pose[:] = update_drawing_pose(drawing_pose,path)
     if reached is False:
+        path_history.clear()
+        path_history.append(np.array([0.,0.]))
+        drawing_pose[:] = 0.
         print(
             "Route stopped early by safety system. "
             "Taking a new scan."
         )
 
-    return True
+    return bool(reached)
 
 def main():
     try:
@@ -350,15 +355,18 @@ def main():
                     "full_search_path.png"
                 )
 
-                drive_path(
+                reached = drive_path(
                     mirte,
                     world_map,
                     path
                 )
 
-                print(
-                    f"Finished drive towards ID {target_id}."
-                )
+                if not reached:
+                    path_history[:]=[np.array([0.,0.])]
+                    drawing_pose[:]=0.
+                    print("Route stopped before confirming the target. Replanning from a new camera map.")
+                    continue
+                print(f"Target ID {target_id} reached within estimated tolerance.")
                 return
 
             # --------------------------------------------------
@@ -386,16 +394,7 @@ def main():
         )
 
     finally:
-        try:
-            mirte.drive(
-                0.0,
-                0.0,
-                0.1
-            )
-        except Exception:
-            pass
-
-        del mirte
+        mirte.stop()
 
 
 if __name__ == "__main__":

@@ -7,6 +7,7 @@
 # local_map.py is the single source of truth for box pose and geometry.
 
 import numpy as np
+from geometry_utils import rectangle_distance
 
 
 def midpoint(a, b):
@@ -71,7 +72,7 @@ def passage_between_ids(
         goal, free_width
 
     goal is the midpoint between the two facing boundary points.
-    free_width is their Euclidean separation.
+    free_width is the exact shortest rectangle-to-rectangle distance.
 
     The passage is accepted only if MIRTE's diameter plus extra_margin fits.
     """
@@ -89,7 +90,7 @@ def passage_between_ids(
     if point_a is None:
         return None, None
 
-    free_width = float(np.linalg.norm(point_b - point_a))
+    free_width = rectangle_distance(box_a, box_b)
 
     required_width = (
         2.0 * local_map.mirte_radius
@@ -104,6 +105,9 @@ def passage_between_ids(
     # A candidate goal must itself be collision-free with every visible box,
     # including any third box.
     if local_map.in_collision(goal):
+        return None, free_width
+    required_clearance = local_map.mirte_radius + max(extra_margin / 2, local_map.clearance_margin)
+    if any(local_map.distance_to_box(goal,i) <= required_clearance for i in local_map.get_visible_box_ids()):
         return None, free_width
 
     return goal, free_width
@@ -348,3 +352,8 @@ def limit_goal_distance(goal, max_distance):
         return goal
 
     return goal * (float(max_distance) / distance)
+
+
+def landmark_dict(landmarks):
+    """Legacy list to {id: position}; new geometry code uses LocalMap.boxes."""
+    return {int(i): np.asarray(p,float).copy() for p,i in landmarks}

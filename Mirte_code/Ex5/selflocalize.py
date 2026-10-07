@@ -79,6 +79,10 @@ CAMERA_OFFSET = 14.0 # cm, from Ex4 (local_map.CAMERA_FORWARD_OFFSET)
 # Goal: the midpoint between the two landmarks
 GOAL = (np.mean([landmarks[ID][0] for ID in landmarkIDs]), np.mean([landmarks[ID][1] for ID in landmarkIDs]))
 
+# Box centres for the RRT planner (rrt_drive.py): the markers are on the front faces, the boxes are 29 cm deep
+BOX_DEPTH = 29.0 # cm
+BOX_CENTRES = [(landmarks[ID][0], landmarks[ID][1] + BOX_DEPTH / 2) for ID in landmarkIDs]
+
 # Driving calibration from Ex4 (Execute_path in Ex4/rrt/mirte_rrt.py)
 LINEAR_SPEED = 0.4       # m/s. Ex4 used 0.3, but at 0.3 the wheels sometimes did not start: 2 of 3 drives in a logged run didn't move
 ANGULAR_SPEED = 0.7      # rad/s
@@ -265,6 +269,7 @@ try:
         print("Connecting to MIRTE. If this hangs at 'Initiating components', the laptop can't reach MIRTE:"
               " check both are on the same network (ping mirte-f549be.local)")
         mirte = KU_Mirte()
+        import rrt_drive # Ex4's RRT planner, used to drive to the goal once localised
         # Our own camera subscriber (fresh_camera.py): best effort, and with the time each frame was taken,
         # so frames taken before or during a move can be skipped. KU_Mirte's own subscription is stopped,
         # so the images don't come over the network twice.
@@ -437,6 +442,34 @@ try:
                 elif phase == "done":
                     print("At the goal", GOAL, "- estimated pose:", est_pose.getX(), est_pose.getY(),
                           "theta (deg):", np.degrees(est_pose.getTheta()))
+                elif phase == "drive":
+                    # Localised: MIRTE is (0, 0) with its heading kept, plan around the boxes with Ex4's RRT and
+                    # drive the whole path with Ex4's Execute_path
+                    pose = (est_pose.getX(), est_pose.getY(), est_pose.getTheta())
+                    rrt_path = rrt_drive.plan(pose, GOAL, BOX_CENTRES)
+                    if rrt_path is None:
+                        print("RRT found no path to the goal - looking again")
+                        phase = "look"
+                        angle, dist = 0.0, 0.0
+                    else:
+                        legs = rrt_drive.path_legs(rrt_path)
+                        print("RRT path (MIRTE's frame, m, start first):", [tuple(np.round(p, 2)) for p in reversed(rrt_path)])
+                        print("drive (RRT):", ", ".join("turn %.1f deg + %.1f cm" % (np.degrees(a), d) for a, d in legs))
+                        # log every leg with the estimate before it, then let the filter follow each leg
+                        for leg_turn, leg_dist in legs:
+                            leg_est = aug_mcl.estimate_pose()
+                            log["steps"].append({
+                                "time": time.time() - start_time, "phase": "drive",
+                                "particles": np.array([[p.getX(), p.getY(), p.getTheta()] for p in aug_mcl.particles]),
+                                "estimate": (leg_est.getX(), leg_est.getY(), leg_est.getTheta()),
+                                "z": {ID: (float(d), float(a)) for ID, (d, a) in z_last.items()},
+                                "move": (leg_turn, leg_dist)})
+                            aug_mcl.particles = np.array([aug_mcl.sample_motion_model_with_map([leg_dist, leg_turn], x_last, m)
+                                                          for x_last in aug_mcl.particles])
+                        rrt_drive.drive(mirte, rrt_path)
+                        u_pending = [0.0, 0.0] # the legs are already in the particles
+                        move_end_time = time.time()
+                        continue # logged above, next look decides if MIRTE is at the goal
                 else:
                     print(phase, ": turn", np.degrees(angle), "deg, then drive", dist, "cm")
                     turn(mirte, angle)

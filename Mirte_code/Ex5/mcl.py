@@ -62,7 +62,7 @@ class MCL:
             delta = np.array([
             landmark_x - particle_x,
             landmark_y - particle_y])
-            bearing = np.arctan2(delta[0], delta[1]) - particle_theta
+            bearing = np.arctan2(-delta[0], delta[1]) - particle_theta
             res[id] = np.array([np.linalg.norm(delta), bearing]) #get distance and bearing to landmarks in a dictionary
         return res
 
@@ -70,12 +70,12 @@ class MCL:
         prop = 1
 
         for id in z_true:
-            is_visible_from_pose = self.is_visible(z_true[id][1], z_max[1])
+            is_visible_from_pose = True
             measured = z_measured.get(id)
 
             if measured is None:
                 if is_visible_from_pose:
-                    prop *= 0.3
+                    prop *= 1
             else:
                 prop *= self.gaussian_pdf(
                     measured[0], z_true[id][0], sigma_hit[0]
@@ -83,15 +83,6 @@ class MCL:
                 prop *= self.gaussian_pdf(
                     measured[1], z_true[id][1], sigma_hit[1]
                 )
-
-
-        print(
-        "ID", id,
-        "measured:", measured,
-        "true:", z_true[id],
-        "distance error:", measured[0] - z_true[id][0],
-        "angle error:", measured[1] - z_true[id][1])
-
         return prop
 
     def p_range(self, z_measured, z_min, z_max, sigma_hit):

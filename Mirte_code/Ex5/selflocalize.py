@@ -514,7 +514,7 @@ try:
                     # with Ex4's RRT + simplify_path, drive the simplified path with Ex4's Execute_path, then look
                     # again (at the goal: done, otherwise plan again from the updated estimate)
                     pose = (est_pose.getX(), est_pose.getY(), est_pose.getTheta())
-                    rrt_path = rrt_plan(pose) # simplified path, world frame (m), goal first
+                    rrt_path = rrt_plan(pose, m) # simplified path, world frame (m), goal first
                     if rrt_path is None:
                         print("RRT found no path to the goal - looking again")
                         phase = "look"

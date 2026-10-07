@@ -79,9 +79,15 @@ CAMERA_OFFSET = 14.0 # cm, from Ex4 (local_map.CAMERA_FORWARD_OFFSET)
 # Goal: the midpoint between the two landmarks
 GOAL = (np.mean([landmarks[ID][0] for ID in landmarkIDs]), np.mean([landmarks[ID][1] for ID in landmarkIDs]))
 
-# Box centres for the RRT planner (rrt_drive.py): the markers are on the front faces, the boxes are 29 cm deep
+# Box centres for the RRT planner (mirte_rrt.py): the markers are on the front faces, the boxes are 29 cm deep
 BOX_DEPTH = 29.0 # cm
 BOX_CENTRES = [(landmarks[ID][0], landmarks[ID][1] + BOX_DEPTH / 2) for ID in landmarkIDs]
+
+# RRT settings, as in Ex4's main() (mirte_rrt.py)
+RRT_PATH_RES = 0.1      # m
+RRT_EXPAND_DIS = 0.4    # m
+RRT_MAP_MARGIN = 0.5    # m, free space around start, goal and boxes for the RRT samples
+RRT_TRIES = 5
 
 # Driving calibration from Ex4 (Execute_path in Ex4/rrt/mirte_rrt.py)
 LINEAR_SPEED = 0.4       # m/s. Ex4 used 0.3, but at 0.3 the wheels sometimes did not start: 2 of 3 drives in a logged run didn't move
@@ -238,6 +244,66 @@ def next_move(est_pose, mcl, seen_ids, z_last, looks_here):
     return angle, (min(dist, MAX_LEG) if z_last else dist), "drive"
 
 
+def to_robot_frame(pose, point):
+    """World point (cm) -> mirte_rrt's frame (m): MIRTE at (0, 0) with its heading kept, x to the right, y straight ahead."""
+    x, y, theta = pose
+    dx, dy = point[0] - x, point[1] - y
+    ahead = dx * np.cos(theta) + dy * np.sin(theta)
+    left = -dx * np.sin(theta) + dy * np.cos(theta)
+    return np.array([-left, ahead]) / 100.0
+
+
+def rrt_plan(pose, m):
+    """Plan in the world frame (m) from MIRTE's estimated position (from the measurements and motion updates of the
+    particle filter) to GOAL around the boxes with mirte_rrt's RRT, then shorten it with simplify_path.
+    Returns the simplified path goal first (as mirte_rrt gives it), or None."""
+    start = np.array([pose[0], pose[1]]) / 100.0
+    goal = np.array(GOAL) / 100.0
+    boxes = [np.array(c) / 100.0 for c in BOX_CENTRES]
+    pts = np.array([start, goal] + boxes)
+    # Same LocalMap as Ex4 (box radius 0.20 m + MIRTE radius 0.22 m), the boxes as landmarks in the world frame
+    rrt_map = local_map.LocalMap(landmarks=[[b, i] for i, b in enumerate(boxes)],
+                                 low=pts.min(axis=0) - RRT_MAP_MARGIN, high=pts.max(axis=0) + RRT_MAP_MARGIN)
+    robot = robot_models.PointMassModel(ctrl_range=[-RRT_PATH_RES, RRT_PATH_RES])
+    for _ in range(RRT_TRIES): # RRT is random, try again if it does not find a path
+        rrt = RRT(start=start, goal=goal, robot_model=robot, map=rrt_map,
+                  expand_dis=RRT_EXPAND_DIS, path_resolution=RRT_PATH_RES)
+        path = rrt.planning(animation=False)
+        if path is not None:
+            return simplify_path(path, rrt)
+    return None
+
+
+def truncate_path(path, max_len):
+    """The first max_len (m) of a path (goal first, like mirte_rrt's), cut at the point where that length is
+    reached. Returns it goal first again."""
+    points = [np.asarray(p, dtype=float) for p in reversed(path)]
+    cut, left = [points[0]], max_len
+    for prev, point in zip(points[:-1], points[1:]):
+        seg = np.linalg.norm(point - prev)
+        if seg >= left:
+            cut.append(prev + (point - prev) * (left / seg))
+            break
+        cut.append(point)
+        left -= seg
+    return list(reversed(cut))
+
+
+def path_moves(pose, path):
+    """The (turn rad, distance cm) moves Execute_path makes along a simplified world path (goal first),
+    starting from the estimated pose. Only used to let the particle filter follow the drive."""
+    moves, heading = [], pose[2]
+    points = [100.0 * np.asarray(p) for p in reversed(path)]
+    for prev, point in zip(points[:-1], points[1:]):
+        dx, dy = point[0] - prev[0], point[1] - prev[1]
+        if np.hypot(dx, dy) <= 1e-4:
+            continue
+        target = np.arctan2(dy, dx)
+        moves.append((np.mod(target - heading + np.pi, 2 * np.pi) - np.pi, np.hypot(dx, dy)))
+        heading = target
+    return moves
+
+
 # Main program #
 try:
     if showGUI:
@@ -269,7 +335,11 @@ try:
         print("Connecting to MIRTE. If this hangs at 'Initiating components', the laptop can't reach MIRTE:"
               " check both are on the same network (ping mirte-f549be.local)")
         mirte = KU_Mirte()
-        import rrt_drive # Ex4's RRT planner, used to drive to the goal once localised
+        # Ex4's RRT planner, path simplifier and path driver, used to drive to the goal once localised.
+        # Appended (not inserted) so Ex5's own local_map stays the one that is used (same LocalMap class as Ex4's)
+        sys.path.append(os.path.join(os.path.dirname(os.path.abspath(__file__)), "../Ex4/rrt"))
+        from mirte_rrt import RRT, simplify_path, Execute_path
+        import robot_models
         # Our own camera subscriber (fresh_camera.py): best effort, and with the time each frame was taken,
         # so frames taken before or during a move can be skipped. KU_Mirte's own subscription is stopped,
         # so the images don't come over the network twice.
@@ -395,8 +465,9 @@ try:
         else:
             # No observation - reset weights to uniform distribution
             z_last = {}
-             # without a move or a measurement nothing changed (and the motion model adds noise for u = 0)
-            aug_mcl.particles = np.array([aug_mcl.sample_motion_model_with_map(u, x_last, m) for x_last in aug_mcl.particles])
+            # TODO make a threshold for estimated pose and frames instead. 
+            if u[0] != 0.0 or u[1] != 0.0: # without a move or a measurement nothing changed (and the motion model adds noise for u = 0)
+                aug_mcl.particles = np.array([aug_mcl.sample_motion_model_with_map(u, x_last, m) for x_last in aug_mcl.particles])
             for p in aug_mcl.particles:
                 p.setWeight(1.0/num_particles)
 
@@ -443,33 +514,41 @@ try:
                     print("At the goal", GOAL, "- estimated pose:", est_pose.getX(), est_pose.getY(),
                           "theta (deg):", np.degrees(est_pose.getTheta()))
                 elif phase == "drive":
-                    # Localised: MIRTE is (0, 0) with its heading kept, plan around the boxes with Ex4's RRT and
-                    # drive the whole path with Ex4's Execute_path
+                    # Localised: plan in the world frame from the estimated pose (measurements + motion updates)
+                    # with Ex4's RRT + simplify_path, drive the simplified path with Ex4's Execute_path, then look
+                    # again (at the goal: done, otherwise plan again from the updated estimate)
                     pose = (est_pose.getX(), est_pose.getY(), est_pose.getTheta())
-                    rrt_path = rrt_drive.plan(pose, GOAL, BOX_CENTRES)
+                    rrt_path = rrt_plan(pose) # simplified path, world frame (m), goal first
                     if rrt_path is None:
                         print("RRT found no path to the goal - looking again")
                         phase = "look"
                         angle, dist = 0.0, 0.0
                     else:
-                        legs = rrt_drive.path_legs(rrt_path)
-                        print("RRT path (MIRTE's frame, m, start first):", [tuple(np.round(p, 2)) for p in reversed(rrt_path)])
-                        print("drive (RRT):", ", ".join("turn %.1f deg + %.1f cm" % (np.degrees(a), d) for a, d in legs))
-                        # log every leg with the estimate before it, then let the filter follow each leg
-                        for leg_turn, leg_dist in legs:
-                            leg_est = aug_mcl.estimate_pose()
+                        print("RRT simplified path (world, m, start first):", [tuple(np.round(p, 2)) for p in reversed(rrt_path)])
+                        # While a box is in view, drive only the first MAX_LEG of the path and then look again: a long
+                        # drive that was cut short (seen on MIRTE: 53 of 181 cm) is then caught while it is still small
+                        if z_last:
+                            rrt_path = simplify_path(rrt_path)
+                            print("  box in view: driving the first %.0f cm, then looking again" % MAX_LEG)
+                        rrt_path = simplify_path(rrt_path)
+                        moves = path_moves(pose, rrt_path)
+                        # log each move with the estimate before it, and let the particle filter follow it
+                        for move_turn, move_dist in moves:
+                            move_est = aug_mcl.estimate_pose()
                             log["steps"].append({
                                 "time": time.time() - start_time, "phase": "drive",
                                 "particles": np.array([[p.getX(), p.getY(), p.getTheta()] for p in aug_mcl.particles]),
-                                "estimate": (leg_est.getX(), leg_est.getY(), leg_est.getTheta()),
+                                "estimate": (move_est.getX(), move_est.getY(), move_est.getTheta()),
                                 "z": {ID: (float(d), float(a)) for ID, (d, a) in z_last.items()},
-                                "move": (leg_turn, leg_dist)})
-                            aug_mcl.particles = np.array([aug_mcl.sample_motion_model_with_map([leg_dist, leg_turn], x_last, m)
+                                "move": (move_turn, move_dist)})
+                            aug_mcl.particles = np.array([aug_mcl.sample_motion_model_with_map([move_dist, move_turn], x_last, m)
                                                           for x_last in aug_mcl.particles])
-                        rrt_drive.drive(mirte, rrt_path)
-                        u_pending = [0.0, 0.0] # the legs are already in the particles
+                        # Execute_path drives from (0, 0) facing +y: give it the simplified path in MIRTE's own frame
+                        # (the path starts at the estimated position, so its first point becomes (0, 0))
+                        Execute_path(rrt_path, est_pose ,mirte)
+                        u_pending = [0.0, 0.0] # the moves are already in the particles
                         move_end_time = time.time()
-                        continue # logged above, next look decides if MIRTE is at the goal
+                        continue # logged above, the next look decides if MIRTE is at the goal
                 else:
                     print(phase, ": turn", np.degrees(angle), "deg, then drive", dist, "cm")
                     turn(mirte, angle)

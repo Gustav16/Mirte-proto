@@ -70,24 +70,22 @@ class MCL:
             delta = np.array([
             landmark_x - particle_x,
             landmark_y - particle_y])
-            bearing = np.mod(np.arctan2(delta[1], delta[0]) - particle_theta + np.pi, 
+            #heading 0 = +x, counter-clockwise positive, same as the motion model and selflocalize.py
+            bearing = np.mod(np.arctan2(delta[1], delta[0]) - particle_theta + np.pi,
                              2 * np.pi) - np.pi
             res[id] = np.array([np.linalg.norm(delta), bearing]) #get distance and bearing to landmarks in a dictionary
         return res
 
-    def p_hit(self,z_measured ,z_true, sigma_hit, z_max):
-        "hit function we assume independece and use the product"
+    def p_hit(self, z_measured, z_true, sigma_hit, z_max):
         prop = 1
+
         for id in z_true:
-            #is_visvible_from_pose = self.is_visible(z_true[id][1], z_max[1])
             is_visible_from_pose = True
             measured = z_measured.get(id)
 
             if measured is None:
                 if is_visible_from_pose:
-                    prop *= 0.3  # missed detection
-                else:
-                    continue
+                    prop *= 1
             else:
                 prop *= self.gaussian_pdf(measured[0], z_true[id][0], sigma_hit[0])
                 bearing_error = np.mod(measured[1] - z_true[id][1] + np.pi, 2 * np.pi) - np.pi #wrap to [-pi, pi)
@@ -112,7 +110,7 @@ class MCL:
         z_measured,
         x_t,
         m,
-        sigma_hit=[10, 0.1],   # std deviation of distance (cm) and bearing (rad, ~6 deg) TODO tune on robot
+        sigma_hit=[10, 0.1745],   # std deviation of distance (cm) and bearing (rad, ~10 deg) TODO tune on robot
         z_min=[30,-0.34877],       # meters -- closest distance ArUco can be reliably detected
         z_max=[500, 0.34877],       # meters -- farthest distance ArUco can be reliably detected TODO
         ):
@@ -148,6 +146,12 @@ class MCL:
         "function for sampling motion model, u = [d_trans (cm), d_rot (rad)]: first turn d_rot on the spot, then drive d_trans straight"
         d_rot_1 = u[1]
         d_trans = u[0]
+
+        #if no change add some random noise
+        if d_rot_1 == 0.0 and d_trans == 0.0:
+            x_t = [pcl.Particle(x_last.getX(), x_last.getY(), x_last.getTheta())]
+            pcl.add_uncertainty(x_t, 5, 0.1745) #stddev of 10 cm, and stddev theta of about 10 degrees
+            return x_t[0]
         d_rot_2 = 0 #we dont rotate after first rotation and transportation, but there may be noise
 
         d_rot_1_est = d_rot_1 + self.sample(self.alpha1*(d_rot_1**2)+ self.alpha2*(d_trans**2))
@@ -228,6 +232,9 @@ class MCL:
             self.W_slow += self.slow_const*(w_avg - self.W_slow)
 
         weights = np.cumsum(weights /np.sum(weights)) #smooth weights
+
+        print("w_avg:", w_avg, "W_fast:", self.W_fast, "W_slow:", self.W_slow,
+              "p_random:", max(0, 1-self.W_fast/self.W_slow))
         
         #redraw sample
         random_noise = np.random.rand(self.M) < max(0, 1- self.W_fast/self.W_slow)

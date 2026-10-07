@@ -205,9 +205,9 @@ from between import find_between_goal
 from visualize_local_map import plot_local_map, plot_path, PNG_PATH
 
 
-def Execute_path(path, mirte):
+def Execute_path(path, pose, mirte):
     path.reverse()
-    current_pose = np.array([0.0, 0.0, 0.0])
+    current_pose = pose
     linear_offset = -0.0354
 
     linear_speed = 0.3   # m/s

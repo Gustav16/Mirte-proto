@@ -6,12 +6,16 @@ class MCL:
     "MCL (monte-carlo localization) class"
     def __init__(self, 
                     prior,
-                    alpha1 = 0.05,  # rotation noise from rotation TODO
-                    alpha2 = 0.05,  # rotation noise from translation TODO
-                    alpha3 = 0.05, # translation noise from translation  TODO
-                    alpha4 = 0.02,  # translation noise from rotation TODO
-                    fast_const = 0.1, #we may change this value TODO
-                    slow_const = 0.001 #we may change this value TODO
+                    # u is in cm and rad, so the alphas have units: variance = alpha * (cm or rad)^2
+                    alpha1 = 0.01,  # rotation noise from rotation [rad^2/rad^2]: turn std = 10% of the turn TODO tune
+                    alpha2 = 3e-7,  # rotation noise from translation [rad^2/cm^2]: ~3 deg heading std per metre TODO tune
+                    alpha3 = 0.0025, # translation noise from translation [cm^2/cm^2]: drive std = 5% of the distance TODO tune
+                    alpha4 = 0.5,  # translation noise from rotation [cm^2/rad^2]: ~1 cm std for a 90 deg turn TODO tune
+                    fast_const = 0.3, #with 0.1/0.001 w_slow stayed at the poor first frames and no particles were ever injected
+                    slow_const = 0.02, #0.3/0.02 reached the goal in 60/60 simulated runs (0.5/0.05 injected too often)
+                    jitter_sigma = 2.0, # cm, std of position noise added after resampling
+                    jitter_sigma_theta = 0.02, # rad, std of heading noise added after resampling
+                    camera_offset = 0.0 # cm, camera in front of the robot centre (the particles are the robot centre)
 
                      ):
         self.alpha1 = alpha1  # rotation noise from rotation
@@ -22,6 +26,9 @@ class MCL:
         self.W_slow = None
         self.fast_const = fast_const
         self.slow_const =  slow_const
+        self.jitter_sigma = jitter_sigma
+        self.jitter_sigma_theta = jitter_sigma_theta
+        self.camera_offset = camera_offset
         self.particles = np.array(prior)
         self.M = len(self.particles)
 
@@ -54,9 +61,10 @@ class MCL:
         get distance and bearing to landmarks in a dictionary
         """
         res = {}
-        particle_x =  x_t.getX()
-        particle_y =  x_t.getY()
         particle_theta = x_t.getTheta()
+        #the camera measures from its own position, camera_offset in front of the robot centre
+        particle_x =  x_t.getX() + self.camera_offset*np.cos(particle_theta)
+        particle_y =  x_t.getY() + self.camera_offset*np.sin(particle_theta)
         for pos, id in m.landmarks:
             landmark_x,landmark_y = pos
             delta = np.array([
@@ -137,7 +145,7 @@ class MCL:
         return np.random.normal(loc=0, scale=np.sqrt(b_variance)) #zero mean
 
     def sample_motion_model(self, u, x_last):
-        "function for sampling motion model"
+        "function for sampling motion model, u = [d_trans (cm), d_rot (rad)]: first turn d_rot on the spot, then drive d_trans straight"
         d_rot_1 = u[1]
         d_trans = u[0]
         d_rot_2 = 0 #we dont rotate after first rotation and transportation, but there may be noise
@@ -146,23 +154,25 @@ class MCL:
         d_trans_est = d_trans + self.sample(self.alpha3*(d_trans**2) + self.alpha4*(d_rot_1**2))
         d_rot_2_est = d_rot_2 + self.sample(self.alpha2*(d_trans**2))
 
-        theta_new = x_last.getTheta() + u[1]
-        x_prime = x_last.getX() + d_trans_est*np.cos(theta_new + d_rot_1_est)
-        y_prime = x_last.getY() + d_trans_est*np.sin(theta_new + d_rot_1_est)
-        theta_prime = np.mod(x_last.getTheta() + d_rot_1_est + d_rot_2_est, 2.0 * np.pi) 
+        theta_new = x_last.getTheta() + d_rot_1_est #heading after the (noisy) first turn, d_rot_1_est already contains u[1]
+        x_prime = x_last.getX() + d_trans_est*np.cos(theta_new)
+        y_prime = x_last.getY() + d_trans_est*np.sin(theta_new)
+        theta_prime = np.mod(theta_new + d_rot_2_est, 2.0 * np.pi)
         
         return pcl.Particle(x_prime, y_prime, theta_prime)
 
     def is_state_possible(self, x_t, m):
         return not m.in_collision((x_t.getX(), x_t.getY()))
     
-    def sample_motion_model_with_map(self, u, x_last, m):
+    def sample_motion_model_with_map(self, u, x_last, m, max_tries = 10):
         "sampling with map"
-        q = 0
-        while not q:
+        for _ in range(max_tries):
             x_t = self.sample_motion_model(u,x_last)
-            q = self.is_state_possible(x_t, m)
-        return x_t
+            if self.is_state_possible(x_t, m):
+                return x_t
+        #with u = 0 there is no motion noise, so a particle in collision (outside the map or in a landmark)
+        #would be redrawn forever. Replace it with a random free pose instead
+        return self.add_noise(m)
     
     def add_noise(self, m):
         "function for adding random pose to map"
@@ -173,6 +183,27 @@ class MCL:
 
             if not m.in_collision([x,y]):
                 return pcl.Particle(x, y, theta, 1.0/self.M)
+
+    def sample_from_measurement(self, z, m, sigma_dist = 5.0, sigma_angle = 0.05):
+        """random pose that fits the measurement of one seen landmark (sensor resetting): at the measured distance
+        in a random direction around it, turned so the landmark is at the measured bearing.
+        One landmark only puts the robot on a circle around it, which uniform random particles almost never hit."""
+        landmark_pos = {id: pos for pos, id in m.landmarks}
+        seen = [id for id in z if id in landmark_pos]
+        for _ in range(20):
+            if not seen:
+                break
+            id = seen[np.random.randint(len(seen))]
+            dist, bearing = z[id]
+            landmark_x, landmark_y = landmark_pos[id]
+            phi = np.random.uniform(0, 2*np.pi) #direction from the landmark to the camera
+            d = dist + rn.randn(0.0, sigma_dist)
+            theta = phi + np.pi - (bearing + rn.randn(0.0, sigma_angle)) #camera looks back along phi, rotated by the bearing
+            x = landmark_x + d*np.cos(phi) - self.camera_offset*np.cos(theta) #robot centre is camera_offset behind the camera
+            y = landmark_y + d*np.sin(phi) - self.camera_offset*np.sin(theta)
+            if not m.in_collision([x,y]):
+                return pcl.Particle(x, y, theta, 1.0/self.M)
+        return self.add_noise(m)
 
     def copy_particle(self, particle):
         return pcl.Particle(particle.getX(), particle.getY(), particle.getTheta(), particle.getWeight())
@@ -186,7 +217,10 @@ class MCL:
         for p, w in zip(particles, weights):
             p.setWeight(w)
         
-        w_avg = np.mean(weights)
+        #weights are a product over the seen landmarks, so their size jumps when the number of seen landmarks changes.
+        #compare the average per seen landmark instead, so w_fast/w_slow only reacts to how well the particles fit
+        n_seen = max(1, sum(1 for pos, id in m.landmarks if id in z))
+        w_avg = np.mean(weights) ** (1.0 / n_seen)
         if self.W_fast is None: #init as average of weights
             self.W_fast = self.W_slow = w_avg
         else:
@@ -202,7 +236,10 @@ class MCL:
 
         #add random noise with propability p or redraw particle
         new_particles = [
-            self.add_noise(m) if random_noise[i] else self.copy_particle(particles[indices[i]]) for i in range(self.M)]
+            self.sample_from_measurement(z, m) if random_noise[i] else self.copy_particle(particles[indices[i]]) for i in range(self.M)]
+
+        #jitter so resampled copies don't collapse into one particle when standing still
+        pcl.add_uncertainty(new_particles, self.jitter_sigma, self.jitter_sigma_theta)
 
         #set new belief distribution
         self.particles = np.array(new_particles)

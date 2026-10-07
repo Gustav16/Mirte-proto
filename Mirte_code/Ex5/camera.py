@@ -124,7 +124,7 @@ class Camera(object):
         """Constructor:
              camidx - index of camera
              robottype - specify which robot you are using in order to use the correct camera calibration. 
-                         Supported types: arlo, frindo, scribbler, macbookpro"""
+                         Supported types: arlo, frindo, scribbler, macbookpro, mirte"""
 
         print("robottype =", robottype)
         self.useCaptureThread = useCaptureThread
@@ -177,13 +177,25 @@ class Camera(object):
             #self.distortion_coeffs = np.asarray([ -1.2844325433988565e-01, -1.3646926538980573e+00,
             #       -5.7263071423202944e-03, 5.7422957803983802e-03, 5.9722099836744738e+00 ], dtype = np.float64)
             self.distortion_coeffs = np.asarray([0., 0., -1.6169374082976234e-02, 8.7657653170062459e-03, 0.], dtype = np.float64)
+        elif robottype == 'mirte':
+            # Same calibration as angle.py / local_map.py
+            self.imageSize = (640, 480)
+            self.intrinsic_matrix = np.asarray([[609.9, 0., self.imageSize[0] / 2.0],
+                   [0., 609.9, self.imageSize[1] / 2.0], [0., 0., 1.]], dtype = np.float64)
+            self.distortion_coeffs = np.zeros(5, dtype = np.float64)
         else:
             print("Camera.__init__: Unknown robot type")
             exit(-1)
-            
 
-        # Open a camera device for capturing                 
-        if piCameraFound:
+
+        # Open a camera device for capturing
+        if robottype == 'mirte':
+            # MIRTE frames come from KU_Mirte.get_image_compressed() over ROS2, so no local camera is opened.
+            # Only use detect_aruco_objects / draw_aruco_objects, not get_next_frame.
+            self.cam = None
+            self.useCaptureThread = False
+
+        elif piCameraFound:
             # piCamera is available so we use this
             #self.cam = picamera.PiCamera(camidx)
             self.cam = picamera.PiCamera(camera_num=camidx, resolution=self.imageSize, framerate=30)
@@ -276,7 +288,7 @@ class Camera(object):
         # Initialize aruco detector
         self.arucoDict = cv2.aruco.getPredefinedDictionary(cv2.aruco.DICT_6X6_250)
         # Set the correct physical marker size here
-        self.arucoMarkerLength = 0.15  # [m] actual size of aruco markers (in object coordinate system)
+        self.arucoMarkerLength = 0.145 if robottype == 'mirte' else 0.15  # [m] actual size of aruco markers (in object coordinate system)
         
         # Initialize worker thread and framebuffer
         if self.useCaptureThread:
@@ -343,8 +355,8 @@ class Camera(object):
     # ArUco object detector
     def detect_aruco_objects(self, img):
         """Detect objects in the form of a binary ArUco code and return object IDs, distances (in cm) and
-        angles (in radians) to detected ArUco codes. The distance is computed to the center of the ArUco code.
-        The angle is computed as the signed angle between translation vector to detected object projected onto
+        angles (in radians) to detected ArUco codes. The distance is the horizontal distance to the center of the
+        ArUco code. The angle is computed as the signed angle between translation vector to detected object projected onto
         the x-z plane and the z-axis (pointing out of the camera). This corresponds to that the angle is measuring
         location along the horizontal x-axis.
 
@@ -355,27 +367,16 @@ class Camera(object):
 
 
         if not isinstance(self.ids, type(None)):
-            dists = np.linalg.norm(self.tvecs, axis=len(self.tvecs.shape) - 1) * 100
-            # Make sure we always return properly shaped arrays
-            dists = dists.reshape((dists.shape[0],))
+            # Use only the horizontal (x-z plane) part of the translation, so a marker above or below
+            # the camera does not add to the distance or the angle. (The old code zeroed y but did not
+            # renormalise, so the angle included the height difference: ~1.5 deg too wide on MIRTE.)
+            tx = self.tvecs[:, 0, 0]  # camera x-axis points right
+            tz = self.tvecs[:, 0, 2]  # camera z-axis points out of the camera
+            dists = np.hypot(tx, tz) * 100
             ids = self.ids.reshape((self.ids.shape[0],))
 
-            # Compute angles
-            angles = np.zeros(dists.shape, dtype=dists.dtype)
-            for i in range(dists.shape[0]):
-                tobj = self.tvecs[i] * 100 / dists[i]
-                zaxis = np.zeros(tobj.shape, dtype=tobj.dtype)
-                zaxis[0,-1] = 1
-                xaxis = np.zeros(tobj.shape, dtype=tobj.dtype)
-                xaxis[0,0] = 1
-
-                # We want the horizontal angle so project tobjt onto the x-z plane
-                tobj_xz = tobj
-                tobj_xz[0,1] = 0
-                # Should the sign be clockwise or counter-clockwise (left or right)?
-                # In this version it is positive to the left as seen from the camera.
-                direction = -1*np.sign(tobj_xz[0,0])  # The same as np.sign(np.dot(tobj, xaxis.T))
-                angles[i] = direction * np.arccos(np.dot(tobj_xz, zaxis.T))
+            # Positive to the left as seen from the camera.
+            angles = -np.arctan2(tx, tz)
         else:
             dists = None
             ids = None

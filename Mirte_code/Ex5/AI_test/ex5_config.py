@@ -12,8 +12,8 @@ import math
 #   ID_B = (LANDMARK_DISTANCE_M, 0)
 #   theta = 0 means facing +z
 
-LANDMARK_ID_A = 1
-LANDMARK_ID_B = 10
+LANDMARK_ID_A = 4
+LANDMARK_ID_B = 2
 LANDMARK_DISTANCE_M = 1.20  # REPLACE with the measured ArUco-centre distance.
 
 LANDMARKS = {

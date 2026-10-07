@@ -64,8 +64,11 @@ landmarks = {
 }
 landmark_colors = [CRED, CGREEN] # Colors used when drawing the landmarks
 
+# MIRTE is always in front of the boxes (y < 0, the side of the markers we measure to). Seeing one box at a time,
+# the mirror image of the pose behind the boxes fits the measurements just as well, so the map stops 30 cm
+# (about one box depth) behind the face line to rule it out.
 m = local_map.LocalMap(low=(-100.0, -250.0),
-        high=(500.0, 350.0), landmark_radius=2,
+        high=(500.0, 30.0), landmark_radius=2,
                 mirte_radius=2)
 
 m.landmarks = [[list(landmarks[ID]), ID] for ID in landmarkIDs] # same landmarks as above, in the map's format
@@ -164,7 +167,7 @@ def initialize_particles(num_particles):
     particles = []
     for i in range(num_particles):
         # Random starting points. 
-        p = particle.Particle(600.0*np.random.ranf() - 100.0, 600.0*np.random.ranf() - 250.0, np.mod(2.0*np.pi*np.random.ranf(), 2.0*np.pi), 1.0/num_particles)
+        p = particle.Particle(np.random.uniform(m.map_area[0][0], m.map_area[1][0]), np.random.uniform(m.map_area[0][1], m.map_area[1][1]), np.mod(2.0*np.pi*np.random.ranf(), 2.0*np.pi), 1.0/num_particles)
         particles.append(p)
 
     return particles
@@ -213,16 +216,18 @@ def next_move(est_pose, mcl, seen_ids, z_last, looks_here):
                     for ID in z_last)
     localised = (set(landmarkIDs) <= seen_ids and spread_pos < MAX_SPREAD_POS and spread_theta < MAX_SPREAD_THETA
                  and explained)
+    dx = GOAL[0] - est_pose.getX()
+    dy = GOAL[1] - est_pose.getY()
+    dist = np.hypot(dx, dy)
+    #at the goal the boxes are beside MIRTE, out of view, so the cloud may have spread while driving there blind:
+    #allow twice the spread there, but not a cloud that is lost (spread out over the map, mean near the goal by chance)
+    if (dist < GOAL_TOLERANCE and set(landmarkIDs) <= seen_ids and explained
+            and spread_pos < 2 * MAX_SPREAD_POS and spread_theta < 2 * MAX_SPREAD_THETA):
+        return 0.0, 0.0, "done"
     if not localised:
         if z_last and looks_here < MAX_LOOKS:
             return 0.0, 0.0, "look"
         return SCAN_STEP, 0.0, "scan"
-
-    dx = GOAL[0] - est_pose.getX()
-    dy = GOAL[1] - est_pose.getY()
-    dist = np.hypot(dx, dy)
-    if dist < GOAL_TOLERANCE:
-        return 0.0, 0.0, "done"
 
     angle = np.arctan2(dy, dx) - est_pose.getTheta()
     angle = np.mod(angle + np.pi, 2 * np.pi) - np.pi # turn the short way
@@ -271,6 +276,15 @@ try:
         while fresh_cam.has_timestamps is None and time.time() - wait_start < 5.0: # wait for the first camera frame
             time.sleep(0.1)
         print("Camera timestamps from MIRTE:", fresh_cam.has_timestamps, "(None = no frame within 5 s)")
+
+        # Drive commands sent before MIRTE has discovered KU_Mirte's drive publisher are silently dropped.
+        # Over the hotspot that took up to ~30 s: the first drives of a run stalled or were cut short.
+        if driveToGoal:
+            wait_start = time.time()
+            while mirte.movement_pub.publisher_mirte.get_subscription_count() == 0 and time.time() - wait_start < 60.0:
+                time.sleep(0.2)
+            print("MIRTE listens to drive commands:", mirte.movement_pub.publisher_mirte.get_subscription_count() > 0,
+                  "(after %.1f s)" % (time.time() - wait_start))
 
     # Allocate space for world map
     world = np.zeros((500,500,3), dtype=np.uint8)
@@ -365,7 +379,8 @@ try:
         else:
             # No observation - reset weights to uniform distribution
             z_last = {}
-            aug_mcl.particles = np.array([aug_mcl.sample_motion_model_with_map(u, x_last, m) for x_last in aug_mcl.particles])
+            if u[0] != 0.0 or u[1] != 0.0: # without a move or a measurement nothing changed (and the motion model adds noise for u = 0)
+                aug_mcl.particles = np.array([aug_mcl.sample_motion_model_with_map(u, x_last, m) for x_last in aug_mcl.particles])
             for p in aug_mcl.particles:
                 p.setWeight(1.0/num_particles)
 

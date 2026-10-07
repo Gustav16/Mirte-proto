@@ -6,6 +6,7 @@ import time
 from timeit import default_timer as timer
 import sys
 from mcl import MCL
+import run_plots
 import local_map
 import os
 sys.path.append(
@@ -15,12 +16,10 @@ sys.path.append(
     )
 )
 
-#from ku_mirte import KU_Mirte
-
-
 # Flags
 showGUI = True  # Whether or not to open GUI windows
-onRobot = False  # Whether or not we are running on the Arlo robot
+onRobot = True  # Whether or not we are running on MIRTE (camera frames over ROS2), False = laptop camera + keyboard
+driveToGoal = True  # On MIRTE: scan, localise and drive to the midpoint between the landmarks. False = stand still and only localise
 
 
 def isRunningOnArlo():
@@ -36,11 +35,10 @@ if isRunningOnArlo():
 
 
 try:
-    #import robot
-    onRobot = False
+    from ku_mirte import KU_Mirte
 
 except ImportError:
-    print("selflocalize.py: robot module not present - forcing not running on Arlo!")
+    print("selflocalize.py: ku_mirte module not present - forcing not running on MIRTE!")
     onRobot = False
 
 
@@ -58,10 +56,11 @@ CBLACK = (0, 0, 0)
 
 # Landmarks.
 # The robot knows the position of 2 landmarks. Their coordinates are in the unit centimeters [cm].
-landmarkIDs = [1, 3]
+landmarkIDs = [4, 2] # IDs of the landmarks in the world
+# x = box centre, y = 0 on the line of the front faces (where the markers are, which is what the camera measures to).
 landmarks = {
-    1: (0.0, 0.0),  # Coordinates for landmark 1
-    3: (100.0, 0.0)  # Coordinates for landmark 2
+    4: (0.0, 0.0),  # Coordinates for landmark 4
+    2: (121.0, 0.0)  # Coordinates for landmark 2: outer edges 150 cm apart, boxes 29 cm wide -> centres 121 cm apart
 }
 landmark_colors = [CRED, CGREEN] # Colors used when drawing the landmarks
 
@@ -69,7 +68,37 @@ m = local_map.LocalMap(low=(-100.0, -250.0),
         high=(500.0, 350.0), landmark_radius=2,
                 mirte_radius=2)
 
-m.landmarks =[[[0.0,0.0],1],[[100.0,0.0],3]]
+m.landmarks = [[list(landmarks[ID]), ID] for ID in landmarkIDs] # same landmarks as above, in the map's format
+
+# The particles are the robot centre (MIRTE turns around it); the camera sits this far in front of it.
+CAMERA_OFFSET = 14.0 # cm, from Ex4 (local_map.CAMERA_FORWARD_OFFSET)
+
+# Goal: the midpoint between the two landmarks
+GOAL = (np.mean([landmarks[ID][0] for ID in landmarkIDs]), np.mean([landmarks[ID][1] for ID in landmarkIDs]))
+
+# Driving calibration from Ex4 (Execute_path in Ex4/rrt/mirte_rrt.py)
+LINEAR_SPEED = 0.4       # m/s. Ex4 used 0.3, but at 0.3 the wheels sometimes did not start: 2 of 3 drives in a logged run didn't move
+ANGULAR_SPEED = 0.7      # rad/s
+LINEAR_OFFSET = -0.0354 * LINEAR_SPEED / 0.3  # rad/s, keeps MIRTE driving straight (Ex4: -0.0354 at 0.3 m/s, scaled to keep the same curve correction)
+TURN_SCALER_LEFT = 1.05
+TURN_SCALER_RIGHT = 1.10
+
+# Driving strategy
+FRAMES_PER_STOP = 3            # new camera frames used at each stop before the next move
+SETTLE_TIME = 0.3              # s, only use frames taken at least this long after a move ended (MIRTE has stopped rocking)
+SCAN_STEP = np.radians(25)     # turn left this much between looks while scanning (the camera sees about +-28 deg)
+MAX_SCAN_TURNS = 16            # give up after a bit more than a full turn without seeing any landmark
+MAX_SPREAD_POS = 15.0          # cm, localised when the median particle is this close to the estimate ...
+MAX_SPREAD_THETA = np.radians(10) # ... and its heading this close
+MAX_ERROR_DIST = 15.0          # cm, ... and the estimate predicts the measured distances this well
+MAX_ERROR_ANGLE = 0.1          # rad, ... and the measured angles this well
+MAX_LOOKS = 3                  # stops in a row to stay and look again before turning on
+MAX_LEG = 50.0                 # cm, drive at most this far before stopping to look again (only while a landmark is in view)
+GOAL_TOLERANCE = 10.0          # cm, close enough to the goal
+
+# Run log: every decision stop is saved to runs/ and plotted by run_plots.py when the program ends
+TRUE_START = None              # optional tape-measured start pose (x cm, y cm, theta rad) for the plots, e.g. (60.5, -164.0, np.pi/2)
+RUNS_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), "runs")
 
 
 
@@ -118,6 +147,10 @@ def draw_world(est_pose, particles, world):
         lm = (int(landmarks[ID][0] + offsetX), int(ymax - (landmarks[ID][1] + offsetY)))
         cv2.circle(world, lm, 5, landmark_colors[i], 2)
 
+    # Draw goal
+    goal = (int(GOAL[0] + offsetX), int(ymax - (GOAL[1] + offsetY)))
+    cv2.drawMarker(world, goal, CBLACK, cv2.MARKER_CROSS, 12, 2)
+
     # Draw estimated robot pose
     a = (int(est_pose.getX())+offsetX, ymax-(int(est_pose.getY())+offsetY))
     b = (int(est_pose.getX() + 15.0*np.cos(est_pose.getTheta()))+offsetX, 
@@ -137,6 +170,65 @@ def initialize_particles(num_particles):
     return particles
 
 
+def turn(mirte, angle):
+    """Turn MIRTE angle (rad, positive = left) on the spot."""
+    if abs(angle) < 1e-3:
+        return
+    scaler = TURN_SCALER_LEFT if angle > 0 else TURN_SCALER_RIGHT
+    mirte.drive(0.0, np.sign(angle) * ANGULAR_SPEED, scaler * abs(angle) / ANGULAR_SPEED)
+
+
+def drive(mirte, dist):
+    """Drive MIRTE dist (cm) straight ahead."""
+    if dist < 1e-3:
+        return
+    mirte.drive(LINEAR_SPEED, LINEAR_OFFSET, dist / 100.0 / LINEAR_SPEED)
+
+
+def pose_spread(particles, est_pose):
+    """Median distance (cm) and median heading difference (rad) of the particles to the estimate.
+    Medians, so the few random particles that the augmented MCL injects don't count."""
+    xs = np.array([p.getX() for p in particles])
+    ys = np.array([p.getY() for p in particles])
+    thetas = np.array([p.getTheta() for p in particles])
+    dist = np.hypot(xs - est_pose.getX(), ys - est_pose.getY())
+    dtheta = np.abs(np.mod(thetas - est_pose.getTheta() + np.pi, 2 * np.pi) - np.pi)
+    return np.median(dist), np.median(dtheta)
+
+
+def next_move(est_pose, mcl, seen_ids, z_last, looks_here):
+    """Driving strategy. Returns (turn (rad), distance (cm), phase).
+    Localised = both landmarks seen, particles close together, and the estimate predicts the landmarks in the last
+    frame (z_last) well. The last check catches a particle cloud that has collapsed onto the wrong pose.
+    look:  not localised, but a landmark is in view -> stay and look again (at most MAX_LOOKS stops in a row)
+    scan:  not localised -> turn left SCAN_STEP and look again
+    drive: localised -> turn towards the goal and drive at most MAX_LEG, then look again. With no landmark in view
+           (close to the boxes they leave the camera's view) there is nothing to look at, so drive the rest in one go:
+           every extra start is a chance for the wheels to stall
+    done:  within GOAL_TOLERANCE of the goal"""
+    spread_pos, spread_theta = pose_spread(mcl.particles, est_pose)
+    z_est = mcl.true_z_for_landmarks(est_pose, m)
+    explained = all(abs(z_last[ID][0] - z_est[ID][0]) < MAX_ERROR_DIST and
+                    abs(np.mod(z_last[ID][1] - z_est[ID][1] + np.pi, 2 * np.pi) - np.pi) < MAX_ERROR_ANGLE
+                    for ID in z_last)
+    localised = (set(landmarkIDs) <= seen_ids and spread_pos < MAX_SPREAD_POS and spread_theta < MAX_SPREAD_THETA
+                 and explained)
+    if not localised:
+        if z_last and looks_here < MAX_LOOKS:
+            return 0.0, 0.0, "look"
+        return SCAN_STEP, 0.0, "scan"
+
+    dx = GOAL[0] - est_pose.getX()
+    dy = GOAL[1] - est_pose.getY()
+    dist = np.hypot(dx, dy)
+    if dist < GOAL_TOLERANCE:
+        return 0.0, 0.0, "done"
+
+    angle = np.arctan2(dy, dx) - est_pose.getTheta()
+    angle = np.mod(angle + np.pi, 2 * np.pi) - np.pi # turn the short way
+    return angle, (min(dist, MAX_LEG) if z_last else dist), "drive"
+
+
 # Main program #
 try:
     if showGUI:
@@ -154,7 +246,7 @@ try:
     num_particles = 1000
     particles = initialize_particles(num_particles) #init prior
 
-    aug_mcl = MCL(particles) 
+    aug_mcl = MCL(particles, camera_offset=CAMERA_OFFSET)
     est_pose = aug_mcl.estimate_pose()
 
     #est_pose = particle.estimate_pose(particles) # The estimate of the robots current pose
@@ -164,7 +256,21 @@ try:
     angular_velocity = 0.0 # radians/sec
 
     # Initialize the robot (XXX: You do this)
-    #mirte = KU_Mirte()
+    if isRunningOnArlo():
+        print("Connecting to MIRTE. If this hangs at 'Initiating components', the laptop can't reach MIRTE:"
+              " check both are on the same network (ping mirte-f549be.local)")
+        mirte = KU_Mirte()
+        # Our own camera subscriber (fresh_camera.py): best effort, and with the time each frame was taken,
+        # so frames taken before or during a move can be skipped. KU_Mirte's own subscription is stopped,
+        # so the images don't come over the network twice.
+        from fresh_camera import FreshCamera
+        fresh_cam = FreshCamera()
+        mirte.executor.add_node(fresh_cam)
+        mirte.camera_compressed_sub.destroy_subscription(mirte.camera_compressed_sub.subscription)
+        wait_start = time.time()
+        while fresh_cam.has_timestamps is None and time.time() - wait_start < 5.0: # wait for the first camera frame
+            time.sleep(0.1)
+        print("Camera timestamps from MIRTE:", fresh_cam.has_timestamps, "(None = no frame within 5 s)")
 
     # Allocate space for world map
     world = np.zeros((500,500,3), dtype=np.uint8)
@@ -174,11 +280,25 @@ try:
 
     print("Opening and initializing camera")
     if isRunningOnArlo():
-        #cam = camera.Camera(0, robottype='arlo', useCaptureThread=True)
-        cam = camera.Camera(0, robottype='arlo', useCaptureThread=False)
+        cam = camera.Camera(0, robottype='mirte') # only used for ArUco detection, frames come from mirte
     else:
         #cam = camera.Camera(0, robottype='macbookpro', useCaptureThread=True)
         cam = camera.Camera(0, robottype='macbookpro', useCaptureThread=False)
+
+    last_frame = None # last camera frame from MIRTE, to only process new frames
+
+    # Driving state (on MIRTE)
+    u_pending = [0.0, 0.0]  # the move [cm, rad] MIRTE made since the last processed frame
+    move_end_time = 0.0     # time.time() when the last move ended, older frames are not used
+    frames_at_stop = 0      # frames processed since the last move
+    seen_ids = set()        # landmarks seen so far
+    z_last = {}             # landmarks in the last processed frame
+    scan_turns = 0          # scan turns in a row without seeing any landmark
+    looks_here = 0          # stops in a row spent looking again without moving
+    phase = "scan" if driveToGoal else "standstill"
+    start_time = time.time()
+    log = {"landmarks": dict(landmarks), "goal": GOAL, "camera_offset": CAMERA_OFFSET,
+           "true_start": TRUE_START, "true_end": None, "steps": []}
 
     while True:
 
@@ -203,14 +323,22 @@ try:
 
         u = [velocity, angular_velocity]
 
-        # Use motor controls to update particles
-        # XXX: Make the robot drive
-        # XXX: You do this
-
-
         # Fetch next frame
-        colour = cam.get_next_frame()
-        
+        if isRunningOnArlo():
+            colour, captured = fresh_cam.latest()
+            if colour is None or colour is last_frame: # no new frame from MIRTE yet, don't reuse the same measurement
+                continue
+            last_frame = colour
+            if captured < move_end_time + SETTLE_TIME: # taken before or during the last move
+                continue
+            colour = colour.copy() # draw on a copy, not on the cached frame
+
+            # Use motor controls to update particles: the move made since the last processed frame, applied once
+            u = u_pending
+            u_pending = [0.0, 0.0]
+        else:
+            colour = cam.get_next_frame()
+
         # Detect objects
         objectIDs, dists, angles = cam.detect_aruco_objects(colour)
         if not isinstance(objectIDs, type(None)):
@@ -219,9 +347,11 @@ try:
             for i in range(len(objectIDs)):
                 print("Object ID = ", objectIDs[i], ", Distance = ", dists[i], ", angle = ", angles[i])
                 # XXX: Do something for each detected object - remember, the same ID may appear several times
-                #build observation map 
-                if objectIDs[i] not in z:
+                #build observation map, keep the closest detection of each ID (the face pointing at the robot)
+                if objectIDs[i] not in z or dists[i] < z[objectIDs[i]][0]:
                     z[objectIDs[i]] = np.array([dists[i], angles[i]])
+            z_last = {ID: z[ID] for ID in z if ID in landmarks}
+            seen_ids.update(z_last)
 
             # Compute particle weights
             # XXX: You do this
@@ -233,7 +363,8 @@ try:
             # Draw detected objects
             cam.draw_aruco_objects(colour)
         else:
-            # No observation - reset weights to uniform distribution  
+            # No observation - reset weights to uniform distribution
+            z_last = {}
             aug_mcl.particles = np.array([aug_mcl.sample_motion_model_with_map(u, x_last, m) for x_last in aug_mcl.particles])
             for p in aug_mcl.particles:
                 p.setWeight(1.0/num_particles)
@@ -251,7 +382,9 @@ try:
                 max(p.getWeight() for p in aug_mcl.particles),
                 "pose:",
                 est_pose.getX(),
-                est_pose.getY()
+                est_pose.getY(),
+                "theta (deg):",
+                np.degrees(est_pose.getTheta())
             )
             # Draw map
             draw_world(est_pose, aug_mcl.particles, world)
@@ -261,11 +394,56 @@ try:
 
             # Show world
             cv2.imshow(WIN_World, world)
-    
-  
-finally: 
+
+        # Make the robot drive: after FRAMES_PER_STOP frames at this stop, decide and make the next move
+        if isRunningOnArlo() and phase in ("scan", "look", "drive"):
+            frames_at_stop += 1
+            if frames_at_stop >= FRAMES_PER_STOP:
+                frames_at_stop = 0
+                angle, dist, phase = next_move(est_pose, aug_mcl, seen_ids, z_last, looks_here)
+                looks_here = looks_here + 1 if phase == "look" else 0
+                scan_turns = 0 if z_last else scan_turns + (phase == "scan")
+                if scan_turns > MAX_SCAN_TURNS:
+                    phase = "failed"
+                    print("No landmark seen during a full turn - stopping. Seen landmarks:", seen_ids)
+                elif phase == "done":
+                    print("At the goal", GOAL, "- estimated pose:", est_pose.getX(), est_pose.getY(),
+                          "theta (deg):", np.degrees(est_pose.getTheta()))
+                else:
+                    print(phase, ": turn", np.degrees(angle), "deg, then drive", dist, "cm")
+                    turn(mirte, angle)
+                    drive(mirte, dist)
+                    u_pending = [dist, angle]
+                    move_end_time = time.time()
+
+                # Log this stop: copies, since the particles change in place afterwards
+                log["steps"].append({
+                    "time": time.time() - start_time,
+                    "phase": phase,
+                    "particles": np.array([[p.getX(), p.getY(), p.getTheta()] for p in aug_mcl.particles]),
+                    "estimate": (est_pose.getX(), est_pose.getY(), est_pose.getTheta()),
+                    "z": {ID: (float(d), float(a)) for ID, (d, a) in z_last.items()},
+                    "move": (angle, dist) if phase in ("scan", "look", "drive") else (0.0, 0.0)})
+
+
+finally:
     # Make sure to clean up even if an exception occurred
-    
+
+    # Save the run log and its plots (also after q, Ctrl+C or a failure)
+    if 'log' in globals() and log["steps"]:
+        os.makedirs(RUNS_DIR, exist_ok=True)
+        run_path = os.path.join(RUNS_DIR, time.strftime("run_%Y%m%d_%H%M%S"))
+        run_plots.save_log(log, run_path + ".pkl")
+        run_plots.save_run_plots(log, run_path + ".png")
+        print("Saved run log and plots:", run_path + ".pkl/.png")
+
+    # Make sure MIRTE does not keep driving
+    if isRunningOnArlo() and 'mirte' in globals():
+        try:
+            mirte.stop()
+        except Exception: # after Ctrl+C, ROS2 is already shut down and can't send the stop; quit with q instead
+            print("Could not send stop to MIRTE (ROS2 already shut down by Ctrl+C)")
+
     # Close all windows
     cv2.destroyAllWindows()
 

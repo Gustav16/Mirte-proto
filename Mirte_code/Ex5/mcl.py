@@ -82,7 +82,8 @@ class MCL:
                     continue
             else:
                 prop *= self.gaussian_pdf(measured[0], z_true[id][0], sigma_hit[0])
-                #prop *= self.gaussian_pdf(measured[1], z_true[id][1], sigma_hit[1]) #TODO add bearing std deviation
+                bearing_error = np.mod(measured[1] - z_true[id][1] + np.pi, 2 * np.pi) - np.pi #wrap to [-pi, pi)
+                prop *= self.gaussian_pdf(bearing_error, 0, sigma_hit[1])
         return prop
 
     def p_range(self, z_measured, z_min, z_max, sigma_hit):
@@ -103,7 +104,7 @@ class MCL:
         z_measured,
         x_t,
         m,
-        sigma_hit=[10, 0.014976488],   # meters (std deviation) TODO change back to m instead of cm
+        sigma_hit=[10, 0.1],   # std deviation of distance (cm) and bearing (rad, ~6 deg) TODO tune on robot
         z_min=[30,-0.34877],       # meters -- closest distance ArUco can be reliably detected
         z_max=[500, 0.34877],       # meters -- farthest distance ArUco can be reliably detected TODO
         ):

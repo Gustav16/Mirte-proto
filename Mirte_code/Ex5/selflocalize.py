@@ -289,7 +289,7 @@ def path_moves(pose, path):
     """The (turn rad, distance cm) moves Execute_path makes along a simplified world path (goal first),
     starting from the estimated pose. Only used to let the particle filter follow the drive."""
     moves, heading = [], pose[2]
-    points = [100.0 * np.asarray(p) for p in reversed(path)]
+    points = [p for p in reversed(path)]
     for prev, point in zip(points[:-1], points[1:]):
         dx, dy = point[0] - prev[0], point[1] - prev[1]
         if np.hypot(dx, dy) <= 1e-4:

@@ -84,8 +84,8 @@ BOX_DEPTH = 29.0 # cm
 BOX_CENTRES = [(landmarks[ID][0], landmarks[ID][1] + BOX_DEPTH / 2) for ID in landmarkIDs]
 
 # RRT settings, as in Ex4's main() (mirte_rrt.py)
-RRT_PATH_RES = 0.1      # m
-RRT_EXPAND_DIS = 0.4    # m
+RRT_PATH_RES = 10      # m
+RRT_EXPAND_DIS = 40    # m
 RRT_MAP_MARGIN = 0.5    # m, free space around start, goal and boxes for the RRT samples
 RRT_TRIES = 5
 
@@ -257,16 +257,12 @@ def rrt_plan(pose, m):
     """Plan in the world frame (m) from MIRTE's estimated position (from the measurements and motion updates of the
     particle filter) to GOAL around the boxes with mirte_rrt's RRT, then shorten it with simplify_path.
     Returns the simplified path goal first (as mirte_rrt gives it), or None."""
-    start = np.array([pose[0], pose[1]]) / 100.0
-    goal = np.array(GOAL) / 100.0
-    boxes = [np.array(c) / 100.0 for c in BOX_CENTRES]
-    pts = np.array([start, goal] + boxes)
+    start = np.array([pose[0], pose[1]])
+    goal = np.array(GOAL)
     # Same LocalMap as Ex4 (box radius 0.20 m + MIRTE radius 0.22 m), the boxes as landmarks in the world frame
-    rrt_map = local_map.LocalMap(landmarks=[[b, i] for i, b in enumerate(boxes)],
-                                 low=pts.min(axis=0) - RRT_MAP_MARGIN, high=pts.max(axis=0) + RRT_MAP_MARGIN)
     robot = robot_models.PointMassModel(ctrl_range=[-RRT_PATH_RES, RRT_PATH_RES])
     for _ in range(RRT_TRIES): # RRT is random, try again if it does not find a path
-        rrt = RRT(start=start, goal=goal, robot_model=robot, map=rrt_map,
+        rrt = RRT(start=start, goal=goal, robot_model=robot, map=m,
                   expand_dis=RRT_EXPAND_DIS, path_resolution=RRT_PATH_RES)
         path = rrt.planning(animation=False)
         if path is not None:
@@ -527,10 +523,9 @@ try:
                         print("RRT simplified path (world, m, start first):", [tuple(np.round(p, 2)) for p in reversed(rrt_path)])
                         # While a box is in view, drive only the first MAX_LEG of the path and then look again: a long
                         # drive that was cut short (seen on MIRTE: 53 of 181 cm) is then caught while it is still small
-                        if z_last:
-                            rrt_path = simplify_path(rrt_path)
-                            print("  box in view: driving the first %.0f cm, then looking again" % MAX_LEG)
-                        rrt_path = simplify_path(rrt_path)
+                        # if z_last:
+                        #     rrt_path = simplify_path(rrt_path)
+                        #     print("  box in view: driving the first %.0f cm, then looking again" % MAX_LEG)
                         moves = path_moves(pose, rrt_path)
                         # log each move with the estimate before it, and let the particle filter follow it
                         for move_turn, move_dist in moves:

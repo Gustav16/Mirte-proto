@@ -31,12 +31,31 @@ test_30_camera_horizontal_bearing (__main__.Tests.test_30_camera_horizontal_bear
 test_31_frozen_camera_is_not_fresh_evidence (__main__.Tests.test_31_frozen_camera_is_not_fresh_evidence) ... ok
 test_32_initial_search_rotation (__main__.Tests.test_32_initial_search_rotation) ... ok
 test_33_different_start_positions (__main__.Tests.test_33_different_start_positions) ... ok
+test_34_exact_continuous_arc (__main__.Tests.test_34_exact_continuous_arc) ... ok
+test_35_previous_command_and_latency (__main__.Tests.test_35_previous_command_and_latency) ... ok
+test_36_continuous_route_has_one_final_stop (__main__.Tests.test_36_continuous_route_has_one_final_stop) ... ok
+test_37_incompatible_driver_rejected_before_motion (__main__.Tests.test_37_incompatible_driver_rejected_before_motion) ... ok
+test_38_curve_collision (__main__.Tests.test_38_curve_collision) ... ok
+test_39_driver_modifier_setup (__main__.Tests.test_39_driver_modifier_setup) ... ok
+test_40_missing_modifier_stops_factory (__main__.Tests.test_40_missing_modifier_stops_factory) ... ok
+test_41_directional_response_and_drift (__main__.Tests.test_41_directional_response_and_drift) ... ok
+test_42_tracker_keeps_physical_velocity (__main__.Tests.test_42_tracker_keeps_physical_velocity) ... ok
+test_43_calibration_trial_and_calculations (__main__.Tests.test_43_calibration_trial_and_calculations) ... ok
+test_44_snapshot_freshness_and_no_overwrite (__main__.Tests.test_44_snapshot_freshness_and_no_overwrite) ... ok
+test_45_camera_calibration_consistency (__main__.Tests.test_45_camera_calibration_consistency) ... ok
+test_46_augmented_quality_drop (__main__.Tests.test_46_augmented_quality_drop) ... ok
+test_47_augmented_landmark_set_change (__main__.Tests.test_47_augmented_landmark_set_change) ... ok
+test_48_recovery_sampling_and_uniform_weights (__main__.Tests.test_48_recovery_sampling_and_uniform_weights) ... ok
+test_49_full_map_recovery_is_bounded (__main__.Tests.test_49_full_map_recovery_is_bounded) ... ok
+test_50_fixed_marker_snapshot_and_map_gate (__main__.Tests.test_50_fixed_marker_snapshot_and_map_gate) ... ok
+test_51_selflocalize_offline_demo (__main__.Tests.test_51_selflocalize_offline_demo) ... ok
+test_52_reinitialization_clears_old_confidence (__main__.Tests.test_52_reinitialization_clears_old_confidence) ... ok
 
 ----------------------------------------------------------------------
-Ran 33 tests in 3.276s
+Ran 52 tests in 26.645s
 
 OK
 Camera.py: picamera module not available
 Camera.py: picamera2 module not available
 Camera.py: Using OpenCV interface instead
-Saved map data to: /tmp/tmp8i206_v8/map.json
+Saved map data to: /tmp/tmpul47yskf/map.json

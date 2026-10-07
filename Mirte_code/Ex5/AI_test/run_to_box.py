@@ -14,7 +14,7 @@ sys.path.append(
     )
 )
 
-from robot_io import KU_Mirte
+from robot_io import KU_Mirte,velocity_to_command
 
 
 
@@ -187,8 +187,7 @@ def explore_once(
             "Turning 30 degrees and scanning again."
         )
         mirte.drive(
-            0.0,
-            SEARCH_SPEED,
+            *velocity_to_command(0.0,SEARCH_SPEED),
             SEARCH_ANGLE / SEARCH_SPEED,
             blocking=True,
         )
@@ -204,8 +203,7 @@ def explore_once(
             "Turning 30 degrees and scanning again."
         )
         mirte.drive(
-            0.0,
-            SEARCH_SPEED,
+            *velocity_to_command(0.0,SEARCH_SPEED),
             SEARCH_ANGLE / SEARCH_SPEED,
             blocking=True,
         )
@@ -227,8 +225,7 @@ def explore_once(
             "Turning and scanning again."
         )
         mirte.drive(
-            0.0,
-            SEARCH_SPEED,
+            *velocity_to_command(0.0,SEARCH_SPEED),
             SEARCH_ANGLE / SEARCH_SPEED,
             blocking=True,
         )

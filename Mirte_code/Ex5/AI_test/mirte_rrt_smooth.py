@@ -363,8 +363,11 @@ def plan_path(world_map, goal):
 
 def drive_path(mirte,world_map,path):
     """Local frame is FIXED at this route's start; robot starts at (0,0,0)."""
-    markers={i:box['marker_position'].copy() for i,box in world_map.boxes.items()}
-    localizer=MCL(markers,number_of_particles=1500,initial_pose=(0,0,0),initial_std=(0,0,0))
+    markers=world_map.marker_dict()
+    localizer=MCL(markers,number_of_particles=1500,initial_pose=(0,0,0),initial_std=(0,0,0),
+                  x_bounds=(world_map.map_area[0][0],world_map.map_area[1][0]),
+                  z_bounds=(world_map.map_area[0][1],world_map.map_area[1][1]),
+                  recovery_pose_is_free=world_map.pose_is_free)
     def observations():return get_aruco_observations(mirte,world_map)
     return follow_path(path,mirte,localizer=localizer,get_observations=observations,world_map=world_map)
 

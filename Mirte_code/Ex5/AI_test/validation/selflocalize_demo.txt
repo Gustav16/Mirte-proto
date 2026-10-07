@@ -1,0 +1,5 @@
+pose m/rad: [ 0.35226523 -0.83938351  0.33823095] std m: [0.12672536 0.0847932 ] confident: False
+pose m/rad: [ 0.33049446 -0.82397998  0.33315273] std m: [0.03522724 0.02490926] confident: True
+pose m/rad: [ 0.32490216 -0.80468671  0.36254855] std m: [0.02382384 0.01745987] confident: True
+pose m/rad: [ 0.31666434 -0.78239293  0.39279005] std m: [0.01882318 0.01508143] confident: True
+Saved: MIRTE_merged/validation/selflocalize_demo.png

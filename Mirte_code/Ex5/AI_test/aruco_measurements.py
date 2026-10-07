@@ -37,19 +37,21 @@ from ex5_config import (
     FOCAL_LENGTH_PX,
     IMAGE_HEIGHT,
     IMAGE_WIDTH,
+    CAMERA_FX_PX, CAMERA_FY_PX, CAMERA_CX_PX, CAMERA_CY_PX,
+    CAMERA_DISTORTION_COEFFS,
 )
 
 
 ARUCO_DICT = cv2.aruco.getPredefinedDictionary(cv2.aruco.DICT_6X6_250)
 INTRINSIC_MATRIX = np.array(
     [
-        [FOCAL_LENGTH_PX, 0.0, IMAGE_WIDTH / 2.0],
-        [0.0, FOCAL_LENGTH_PX, IMAGE_HEIGHT / 2.0],
+        [CAMERA_FX_PX, 0.0, CAMERA_CX_PX],
+        [0.0, CAMERA_FY_PX, CAMERA_CY_PX],
         [0.0, 0.0, 1.0],
     ],
     dtype=np.float64,
 )
-DISTORTION_COEFFS = np.zeros((5, 1), dtype=np.float64)
+DISTORTION_COEFFS = np.asarray(CAMERA_DISTORTION_COEFFS,dtype=np.float64).reshape(-1,1)
 CAMERA_OFFSET_XZ_M = np.array([0.0, CAMERA_FORWARD_OFFSET_M], dtype=float)
 
 

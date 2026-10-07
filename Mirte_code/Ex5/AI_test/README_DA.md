@@ -1,101 +1,104 @@
-# Rettet MIRTE-projekt
+# Fletning af kollegaens MCL og selflocalize
 
-Denne pakke indeholder alle 19 oprindelige Python-filer med almindelige modulnavne samt fælles hjælpefiler, tests, simulation og denne vejledning. Brug filerne samlet i én mappe. Bland ikke den nye MCL med gamle versioner af path_follower eller mirte_rrt_smooth.
+Læs KOLLEGA_FLETNING_DA.md for de nyeste ændringer, marker-ID-forskellen og den eksperimentelle augmented MCL. selflocalize.py er en ny tilpasset viewer. Den glidende navigation bevares, og augmented recovery er som standard slået fra.
 
-## Hvad der er rettet
+# Opdatering fra opgave 1–4
 
-- MCL bevarer tidligere vægte, når resampling springes over, og bruger vægtede positions-/vinkelestimater og spredninger.
-- Startlokalisering bruger en partikelpopulation foreslået fra støjbehæftede observationer af to kendte markører. Herefter bruges almindelig prediction/correction/resampling. Det erstatter den sparsomme, rent uniforme startpopulation som praktisk startstrategi; løsningen bruger fortsat MCL.
-- Ingen translation eller succesmelding uden gyldig startlokalisering. Programmet søger efter begge ID'er ved at dreje på stedet og kan observere dem i forskellige billeder ved samme robotposition.
-- Scanrotationer indgår i bevægelsesmodellen. Bearings samles i samme robotframe; cachede målinger genbruges ikke gentagne gange som nye uafhængige målinger.
-- Robotten scanner igen under indkørslen. Den sidste scan foretages omkring 22 cm fra målet, hvor markørernes frontflader stadig kan være synlige. Derefter tillades højst 24 cm fremkørsel siden en scan med begge ID'er, og succes kræver et lille modelbaseret fejl-/usikkerhedstjek. Det undgår at kræve læsbare markørflader præcis på linjen mellem kasserne.
-- Direkte motorbevægelser er korte, blocking og enten rotation eller lige translation. Dermed afhænger koden ikke af `duration=None`, `interrupt=True` eller den tidligere forkerte løkketidsintegration.
-- Ikke-nul STRAIGHT_ANGULAR_BIAS afvises i opgave 5; modellen antager rette translationssegmenter.
-- Byte-identiske kamerabilleder regnes ikke som nye målinger. Dette hjælper med at opdage et frosset kamerastream. Det er en konservativ kontrol, ikke et rigtigt kameratidsstempel; en ægte, men helt identisk ny frame bliver også afvist.
-- ArUco-detektion virker med OpenCV 4/5 via en kompatibilitetsfil og solvePnP. Billedopløsning skal passe til kalibreringen.
-- RRT-grenen bruger et frosset kort af markørcentre til lokal MCL. Robotten starter i denne lokale frame præcis ved `(0,0,0)`. Nye observationer ændrer ikke planlægningskortet.
-- `boxes` og `landmarks` i LocalMap opdateres konsistent. Toframe-kortet filtrerer ID'er og ustabile poses og gennemsnitter geometri i samme frame.
-- Kollisionscheck af linjesegmenter mod orienterede kasser bruger præcis segment-/rektangelafstand frem for alene diskrete samples. Robotradius og 2,5 cm margin anvendes.
-- Passageberegningen bruger nøjagtig mindste rektangelafstand og kontrollerer målpunktets clearance.
-- Path follower drejer på stedet og følger hvert segment med korte translationer. Den skærer ikke bevidst hjørner ved at sigte flere segmenter frem.
-- Manglende/ugyldig sonar afbryder translation; sensorfejl skjules ikke. Sonar skal være i meter.
-- `landmark_dict` er tilføjet, MCL-kald er rettet, og afbrudt kørsel meldes ikke som afsluttet mål.
-- Drawing-pose tildeles korrekt efter afsluttede ruter. Ved afbrudt rute nulstilles den næste planhistorik, da faktisk slutpose ikke kendes i tegnerammen.
-- Plot og JSON viser/gemmer orienterede kasser og deres geometri. Korttegning viser også robot-clearance.
-- FrameBuffer udleverer kopier og returnerer None før første frame. Particle's von-Mises-wrapping, nulafstand i punktmassemodellen, gridcelleantal og gridgenerering er rettet.
-- MirteModel gemmer orientering i hver 3D-state og muterer ikke en fælles vinkel mellem RRT-grene. RRT-hovedprogrammet bruger fortsat PointMassModel.
-- Hardwareimport er lazy: softwaretests/importer starter ikke ROS eller robotten. Den ældre camera.py er fortsat en separat kameraabstraktion; dens cm/3D-afstand må ikke bruges som den nye MCL's plane meterafstand.
+Læs GENBRUG_DA.md først. Pakken anvender nu driverfaktorerne 2.38/2.38 fra ContinuousDrive.py og indeholder calibrate_drive.py samt capture_camera.py. Motorresponsen ved lave hastigheder er stadig uverificeret. De gamle kalibreringstal er ikke automatisk aktiveret som fysiske gains. Gainværdierne er neutrale og skal måles efter opsætning af modifierne.
 
-## Før du kører på robotten
+# MIRTE med glidende kørsel
 
-Åbn `ex5_config.py` og kontrollér:
+Brug denne samlede pakke i stedet for den tidligere MIRTE_fixed-pakke. De 19 oprindelige moduler og rettelserne til MCL, kameramålinger, kortgeometri og RRT er bevaret. Kørslen i opgave 5 og RRT's path follower er nu løbende hastighedsstyring.
 
-1. `LANDMARK_ID_A` og `LANDMARK_ID_B`. De er stadig sat til **1 og 10**.
-2. `LANDMARK_DISTANCE_M`. Den er stadig sat til **1.20 m**. Mål mellem ArUco-centrene i gulvplanets koordinater, ikke mellem kassekanter.
-3. Markørstørrelse **145 mm**, billeder **640×480**, brændvidde **609.9 pixels** og kameraoffset **0.14 m**. Kamera antages vandret og uden sideforskydning.
-4. Kassebredde **0.40 m**, kassedybde **0.25 m** og robotradius **0.22 m**. Kalibreringen er ikke forbedret ved en fysisk måling i denne pakke.
-5. At positiv angular speed faktisk drejer mod venstre, samt faktisk lineær-/vinkelhastighed. Hastigheder og tid bruges som forventet odometri; de er ikke encodermålinger.
-6. At `front_left` og `front_right` i `mirte.sonar` findes, opdateres og er i meter. Koden stopper ved manglende/ugyldige data.
-7. At kamerastreamet opdateres. KU_Mirte's billedmetode giver ikke her et dokumenteret tidsstempel; hashkontrollen opdager identiske, men ikke alle mulige stale billeder.
+## Bevægelsen
 
-Der blev ikke kørt fysisk på MIRTE. Robotdriveren `ku_mirte.py` er ikke med i uploaden, så dens enheder og kørselssemantik skal verificeres lokalt. Programmet kræver den API, de oprindelige filer allerede bruger: `drive(v,w,duration,blocking=True)`, `stop()`, `get_image_compressed()` og `sonar`.
+Robotten sender `drive(v,w,None,blocking=False,interrupt=True)` med nye hastigheder cirka hver 0,15 s. Den eksisterende motorhastighed fortsætter under kameraaflæsning, positionsopdatering og ventetid. Kontrolopdateringer udløser ingen stop. Lineær hastighed er normalt højst 6 cm/s i opgave 5 og 8 cm/s i RRT. Acceleration og ændringer i drejehastighed begrænses, så kommandoerne ændres gradvist.
 
-## Installation og første kørsel
+MCL beregner en cirkelbue med den tidligere aktive hastighed over den faktisk forløbne monotone tid. Samtidig rotation og fremkørsel modelleres som én bevægelse. Løkken bruger ikke en kunstig minimumstid eller flytter robotten i små afsluttede trin.
 
-Udpak ZIP-filen i jeres projektmappe. Mappen `MIRTE_fixed` kan ligge under eksempelvis `~/Mirte-proto/Mirte_code/Ex5/`.
+Opgave 5 starter med lokalisering før fremkørsel: én sammenhængende søgedrejning efter markørerne og en stationær forfining. Under kørslen drejer robotten langsomt frem og tilbage for at se begge markører, mens den fortsætter fremad. Tæt på kasserne sænkes fremkørslen til 0,8 cm/s under disse synsfeltjusteringer. Når begge markører er nyligt observeret og målet er under 19 cm væk, styres den sidste indkørsel mod midtpunktet. Succes kræver afstand plus to gange positionsspredningen højst 10 cm og begrænset bevægelse siden begge markørmålinger.
+
+Robotten stopper ved mål, sensorfejl, for stor usikkerhed, manglende målinger, en farlig forudsagt kurve eller timeout. En stor indledende retningsfejl eller en skarp rute kan kræve drejning på stedet. Der er ingen rutinemæssige stop mellem målinger eller små translationssegmenter. RRT-søgning kan fortsat standse ved afslutningen af en hel rute for at opbygge et nyt lokalt kort; dens særskilte søgedrejninger ligger før den næste rute.
+
+## Robotdriveren skal understøtte løbende kommandoer
+
+`ku_mirte.py` var ikke blandt de modtagne filer. Den oprindelige path follower brugte allerede ovenstående løbende API, og denne version bruger samme kald. Koden kontrollerer inden motorstart, at driverens argumenter understøtter kaldet. Kontrollen kan ikke bevise, hvordan driveren styrer motorerne internt.
+
+Driveren skal erstatte den aktive hastighed uden at stoppe eller sætte kommandoer i kø. `duration=None` skal holde hastigheden aktiv, til den erstattes. Tidsmodellen antager, at den gamle hastighed fortsætter under indsendelsen og den nye er aktiv, når kaldet returnerer. Hvis driveren virker anderledes, skal `robot_io.py`/MotionTracker tilpasses dens faktiske tids- og kørselssemantik. Ved afvist API skal den konkrete `ku_mirte.py` gennemgås; programmet starter ikke fremkørsel med en inkompatibel driver.
+
+Der er ikke foretaget fysisk robotkørsel. Simulation tester løbende kommandoer, billedaflæsning og driverlatens, men ikke fysisk motorregulering, hjulslip, skjulte forhindringer eller virkelige kameratidsstempler. Kameraobservationer behandles ved modtagelsestidspunktet; reel kameraforsinkelse skal holdes lille eller kompenseres med tidsstempler/odometri i driveren.
+
+## Opsætning og kørsel
+
+Udpak filerne samlet og kontrollér `ex5_config.py`:
+
+- ArUco-ID'er er **1 og 10**, og målt afstand mellem markørcentre er **1,20 m**. Tilpas til jeres opstilling.
+- Kamera: **640×480**, brændvidde **609,9 px**, markør **145 mm**, kameraoffset **0,14 m**. Kamera antages vandret.
+- Kasser: **0,40×0,25 m**, robotradius **0,22 m**, clearance **0,025 m**. I opgave 5 antages begge frontmarkører at vende mod negativ z, så kassens centrum ligger 0,125 m bag markøren i positiv z. Tilpas `LANDMARK_BOX_CENTER_OFFSETS_M`, hvis opstillingen er anderledes. Kollisionsmodellen bruger en cirkel omkring det faktiske kassecentrum, som omslutter kassen, plus robotradius og positionsusikkerhed.
+- Positiv drejehastighed skal være mod venstre. Lineær/vinkelhastighed skal være kalibreret; tidsintegrationen er forventet bevægelse, ikke målt encoderodometri.
+- `mirte.sonar['front_left']` og `['front_right']` skal være opdaterede afstande i meter.
 
 ```bash
-cd ~/Mirte-proto/Mirte_code/Ex5/MIRTE_fixed
+cd MIRTE_merged
 python3 check_setup.py
 python3 test_project.py
 ```
 
-Hvis Python ikke kan finde `ku_mirte.py`, sæt stien til den eksisterende robotdriver. Eksempel, hvis driveren ligger i den viste mappe:
-
-```bash
-export KU_MIRTE_PYTHON_PATH="$HOME/Mirte-proto/Mirte/ku_mirte_python"
-```
-
-Stien skal være mappen, der faktisk indeholder `ku_mirte.py`. Hjælpefilen søger også i de oprindeligt forventede projektplaceringer. Ingen robotdriver kopieres eller overskrives af denne pakke.
-
-Læs sensorer/geometri uden bevægelse:
+Sæt om nødvendigt `KU_MIRTE_PYTHON_PATH` til mappen med jeres eksisterende `ku_mirte.py`. Læs sensorer uden motorstart:
 
 ```bash
 python3 check_setup.py --robot
 python3 geometry_check.py
 ```
 
-Når konfigurationen og sensorerne er verificeret, kør opgave 5:
+Kør opgave 5:
 
 ```bash
 python3 run_between_boxes.py
 ```
 
-Robotten kan begynde at dreje for at søge efter markørerne. Hvis den ikke kan lokalisere sig pålideligt, stopper den uden translation. Der er et begrænset antal scan- og kontroltrin. Ctrl+C udløser stop gennem finally-blokken.
-
-RRT/søgning efter et bestemt ID køres separat:
+Kør særskilt RRT/søgning efter et bestemt ID:
 
 ```bash
 python3 run_to_box.py
 ```
 
-Det program spørger efter et ArUco-ID. Det er ikke hovedprogrammet til opgave 5. Det bygger et nyt kort efter afsluttede/afbrudte lokale ruter. Under en rute stoppes der ved for lang translation uden markørmålinger eller for stort positionsestimat. Kortet dækker kun synlige markørkasser; sonar er backup for andre forhindringer foran robotten.
+Ctrl+C stopper via `finally`. Brug ikke moduler blandet fra gamle og nye pakker.
 
-## Tests og simulering
+## Bevarede rettelser
+
+MCL bevarer vægtprioren, også når resampling springes over, og beregner vægtet position, vinkel og usikkerhed. Ingen målbekræftelse baseres på den uniforme startpopulation. De to startmarkører samles i samme rotationsframe. Kortets kendte markører holdes adskilt fra nye observationer; RRT bruger et frosset lokalt kort under en rute.
+
+ArUco-kompatibilitet understøtter OpenCV 4 og 5. Billedopløsning kontrolleres mod kalibreringen. Byte-identiske billeder regnes ikke som friske målinger; dette er konservativ detektion af frosne billeder, ikke en erstatning for kameratidsstempler. LocalMap holder kasser og markører konsistente. Rette segmenter kontrolleres med præcis afstand til orienterede rektangler; kurver kontrolleres med korte kordesegmenter og en ekstra margin.
+
+FrameBuffer kopierer billeder, gridstørrelser er konsistente, vinkler pakkes korrekt, punktmassemodellen håndterer nulafstand, og MirteModel gemmer retningen i hver søgetilstand. Hardwareimport er lazy og tests starter ingen fysisk robot. Den ældre `camera.py` bruger en separat cm/3D-abstraktion og skal ikke levere de plane meterobservationer til MCL.
+
+## Filer og deres rolle
+
+| Filer | Funktion |
+| --- | --- |
+| `run_between_boxes.py`, `ex5_config.py` | Opgave 5, startlokalisering, glidende navigation og fysisk konfiguration |
+| `mcl.py`, `particle.py`, `random_numbers.py` | Partikelfilter og partikel-/støjhåndtering |
+| `continuous_control.py`, `robot_io.py` | Tidsintegration, hastighedsbegrænsning, kurvecheck og robotdrivergrænse |
+| `aruco_measurements.py`, `aruco_compat.py` | Nye plane markørobservationer, kamerageometri og OpenCV-kompatibilitet |
+| `camera.py`, `framebuffer.py` | Ældre kameraabstraktion og trådsikker billedbuffer |
+| `local_map.py`, `geometry_utils.py` | Lokalt kassekort, koordinater og præcis kollisionsgeometri |
+| `mirte_rrt_smooth.py`, `path_smoothing.py` | RRT, ruteudglatning og fast kort under ruten |
+| `path_follower.py` | Løbende hastighedsstyring langs en hel rute med MCL |
+| `run_to_box.py`, `between.py` | Søgning efter ID og valg af sikre passager |
+| `robot_models.py`, `grid_occ.py` | Bevægelsesmodeller og gitterrepræsentation |
+| `geometry_check.py`, `visualize_local_map.py` | Geometrikontrol, kortvisning og JSON |
+| `simulate_mcl.py`, `test_project.py`, `check_setup.py` | Virtuel robot, automatiske tests og opsætningskontrol |
+
+## Validering
+
+`validation/` indeholder testlogs fra OpenCV 4 og 5 samt JSON med simulationsresultater. Den virtuelle robot holder v/w aktive mellem kald og bevæger sig også under 30 ms billedaflæsning og 20 ms driverindsendelse. Kameraets synsfelt og markørfladernes synlighed er begrænset. Ideelle motorer og 10 % forskel i fremkørsels-/drejehastighed testes hver med 20 tilfældighedsfrø. Resultater og stopantal fremgår af JSON, herunder forsøg, hvor styringen stopper uden at bekræfte målet.
+
+Kør selv:
 
 ```bash
 python3 test_project.py
 python3 simulate_mcl.py
 ```
 
-Tests bruger unittest og syntetiske sensorer/motorer; de starter ikke en fysisk robot. `simulate_mcl.py` skriver JSON-resultater til terminalen. Gem dem eventuelt med `python3 simulate_mcl.py > simulation_results.json`.
-
-Resultater fra denne pakke findes i `validation/`. De beskriver præcist de testede scenarier, ikke fysisk nøjagtighed på robotten. Den afsluttende fejlcheck er modelbaseret og er ikke en garanti mod ukalibreret systematisk motorfejl. Kalibrering og reelle billeder med markørernes orientering/occlusion skal stadig prøves på robotten. Scan og stop gør kørslen mindre flydende, men giver målinger mellem bevægelserne.
-
-I startopstillinger, hvor markørfladerne ikke kan ses, eller hvor målingerne ikke giver et sikkert estimat, er det korrekte resultat stop uden succesmelding. Det kan kræve en anden fysisk startplacering eller justering af støjparametre efter faktiske målinger. Justér ikke bare tolerancerne for at få en succesmelding.
-
-## Filer
-
-De 19 oprindelige moduler er med. Nye støttefiler: `robot_io.py`, `aruco_compat.py`, `geometry_utils.py`, `check_setup.py`, `test_project.py`, denne vejledning, `requirements.txt` og valideringsresultater. Originalernes download-suffikser er fjernet, så Python-importer passer.
-
-Eksisterende numpy, matplotlib og OpenCV-contrib på robotten kan bruges. `requirements.txt` beskriver Python-afhængighederne til et separat testmiljø; der er ikke installeret eller ændret pakker på jeres robot.
+Disse resultater dokumenterer de simulerede scenarier. Den fysiske robot og driverens interne kommandohåndtering skal stadig afprøves.

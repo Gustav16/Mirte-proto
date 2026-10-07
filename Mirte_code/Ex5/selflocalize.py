@@ -540,7 +540,7 @@ try:
                                                           for x_last in aug_mcl.particles])
                         # Execute_path drives from (0, 0) facing +y: give it the simplified path in MIRTE's own frame
                         # (the path starts at the estimated position, so its first point becomes (0, 0))
-                        Execute_path(rrt_path, pose ,mirte)
+                        Execute_path(rrt_path, [est_pose.getX(), est_pose.getY(), est_pose.getTheta()] ,mirte)
                         u_pending = [0.0, 0.0] # the moves are already in the particles
                         move_end_time = time.time()
                         continue # logged above, the next look decides if MIRTE is at the goal

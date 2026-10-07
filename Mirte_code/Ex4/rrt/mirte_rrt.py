@@ -217,7 +217,7 @@ def Execute_path(path, pose, mirte):
         dx = point[0] - current_pose[0]
         dy = point[1] - current_pose[1]
 
-        distance = np.linalg.norm([dx, dy])
+        distance = np.linalg.norm([dx, dy])/100
 
         if distance <= 1e-6:
             continue

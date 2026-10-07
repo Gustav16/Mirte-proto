@@ -84,8 +84,8 @@ BOX_DEPTH = 29.0 # cm
 BOX_CENTRES = [(landmarks[ID][0], landmarks[ID][1] + BOX_DEPTH / 2) for ID in landmarkIDs]
 
 # RRT settings, as in Ex4's main() (mirte_rrt.py)
-RRT_PATH_RES = 10      # m
-RRT_EXPAND_DIS = 40    # m
+RRT_PATH_RES = 10      # cm
+RRT_EXPAND_DIS = 40    # cm
 RRT_MAP_MARGIN = 0.5    # m, free space around start, goal and boxes for the RRT samples
 RRT_TRIES = 5
 

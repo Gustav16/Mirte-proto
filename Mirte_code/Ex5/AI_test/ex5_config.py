@@ -33,6 +33,12 @@ IMAGE_WIDTH = 640
 IMAGE_HEIGHT = 480
 FOCAL_LENGTH_PX = 609.9
 ARUCO_MARKER_LENGTH_MM = 145.0
+CAMERA_FX_PX = FOCAL_LENGTH_PX
+CAMERA_FY_PX = FOCAL_LENGTH_PX
+CAMERA_CX_PX = IMAGE_WIDTH / 2.0
+CAMERA_CY_PX = IMAGE_HEIGHT / 2.0
+# Zero is an assumption from the old scripts, NOT measured distortion.
+CAMERA_DISTORTION_COEFFS = (0., 0., 0., 0., 0.)
 
 # Camera is mounted 14 cm in front of the MIRTE centre. Ex4 established that
 # this offset is ADDED when converting a camera-frame landmark position to the
@@ -109,3 +115,50 @@ BOX_CLEARANCE_MARGIN_M = 0.025
 FINAL_MAX_UNOBSERVED_DISTANCE_M = 0.24  # only after a near-goal scan of BOTH IDs
 
 FINAL_APPROACH_STANDOFF_M = 0.005
+
+# Continuous driving: update velocities, never stop between normal control ticks.
+SMOOTH_LINEAR_SPEED_M_S = 0.06
+SMOOTH_ANGULAR_SPEED_RAD_S = 0.40
+SMOOTH_CONTROL_PERIOD_S = 0.15
+SMOOTH_ACCELERATION_M_S2 = 0.10
+SMOOTH_ANGULAR_ACCELERATION_RAD_S2 = 0.65
+SMOOTH_COLLISION_HORIZON_S = 1.0
+SMOOTH_MAX_TICKS = 2400
+SMOOTH_MAX_TIME_S = 300.0
+SMOOTH_SCAN_SPEED_RAD_S = 0.30
+SMOOTH_SCAN_MAX_TIME_S = 40.0
+SMOOTH_SCAN_HOLD_FRAMES = 16
+SMOOTH_MIN_VIEW_SPEED_M_S = 0.008
+SMOOTH_MAX_BLIND_DISTANCE_M = 0.24
+SMOOTH_VIEW_MAX_TIME_S = 20.0
+
+# Exercise 5 assumes both front markers face -z and boxes extend into +z.
+# Set these world-frame marker-to-box-centre offsets to the actual setup.
+LANDMARK_BOX_CENTER_OFFSETS_M = {i:(0.,BOX_DEPTH_M/2) for i in LANDMARKS}
+
+# Driver settings used in ContinuousDrive.py and the later Ex1/2 scripts.
+# These configure the driver, not MCL's physical velocity. Do not multiply
+# MCL velocities by these values. ku_mirte.py is still unavailable for review.
+DRIVE_SPEED_MODIFIER = 2.38
+DRIVE_TURN_MODIFIER = 2.38
+
+# Physical response calibration AFTER setting the above modifiers:
+# actual_v = DRIVE_LINEAR_GAIN * command_v
+# actual_w = directional_gain * command_w + DRIVE_DRIFT_RAD_PER_M * actual_v
+# Neutral values until measurements exist in this SAME driver/speed regime.
+DRIVE_LINEAR_GAIN = 1.0
+DRIVE_LEFT_GAIN = 1.0
+DRIVE_RIGHT_GAIN = 1.0
+DRIVE_DRIFT_RAD_PER_M = 0.0
+
+# Old comments describe a forward dead zone near 0.12 and spinning at 1.5.
+# They do not prove stable low-speed operation. Verify the .008-.06 forward
+# and .30 scan settings physically; never clamp them secretly in the driver.
+DRIVE_LOW_SPEED_VERIFIED = False
+
+# Adapted from the colleague's augmented MCL. Experimental and opt-in:
+# it does not authorize driving with an uncertain/recovering pose.
+AUGMENTED_MCL_ENABLED = False
+AUGMENTED_MCL_FAST_ALPHA = 0.10
+AUGMENTED_MCL_SLOW_ALPHA = 0.001
+AUGMENTED_MCL_MAX_RANDOM_FRACTION = 0.10

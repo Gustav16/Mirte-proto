@@ -44,16 +44,16 @@ from robot_io import KU_Mirte
 ARUCO_MARKER_LENGTH_MM = cfg.ARUCO_MARKER_LENGTH_MM
 
 F = cfg.FOCAL_LENGTH_PX
-CX = cfg.IMAGE_WIDTH / 2.0
-CY = cfg.IMAGE_HEIGHT / 2.0
+CX = cfg.CAMERA_CX_PX
+CY = cfg.CAMERA_CY_PX
 
 INTRINSIC_MATRIX = np.array([
-    [F,   0.0, CX],
-    [0.0, F,   CY],
+    [cfg.CAMERA_FX_PX,   0.0, CX],
+    [0.0, cfg.CAMERA_FY_PX,   CY],
     [0.0, 0.0, 1.0]
 ], dtype=np.float64)
 
-DISTORTION_COEFFS = np.zeros((5, 1), dtype=np.float64)
+DISTORTION_COEFFS = np.asarray(cfg.CAMERA_DISTORTION_COEFFS,dtype=np.float64).reshape(-1,1)
 
 ARUCO_DICT = cv2.aruco.getPredefinedDictionary(
     cv2.aruco.DICT_6X6_250
@@ -260,6 +260,15 @@ class LocalMap:
     def get_marker_position(self, marker_id):
         box = self.get_box(marker_id)
         return None if box is None else box["marker_position"].copy()
+
+    def marker_dict(self):
+        """Snapshot of MARKER centres for MCL, never mutable box-centre data."""
+        return {int(i):box["marker_position"].copy() for i,box in self.boxes.items()}
+
+    def pose_is_free(self, pose):
+        """Map constraint for bounded augmented-MCL recovery sampling."""
+        pose=np.asarray(pose,float)
+        return pose.shape==(3,) and np.all(np.isfinite(pose)) and not self.in_collision(pose[:2])
 
     def distance_to_box(self, point, marker_id):
         """

@@ -1,15 +1,13 @@
-# Validering af den rettede pakke
+# Validering af MIRTE_merged
 
-Dato: 5. oktober 2026. Ingen fysisk robotkørsel.
+52/52 tests består med OpenCV 4.10.0 og 5.0.0. Testlogs følger med.
 
-- Alle 24 Python-moduler syntaksparset/kompileret.
-- 33/33 unittest-tests bestået med OpenCV-contrib 4.10.0.
-- 33/33 unittest-tests bestået med OpenCV-contrib 5.0.0.
-- 100 stationære MCL-seeds: medianfejl 0.88 cm, største fejl 2.53 cm; ingen over 10 cm.
-- 20 kørselsseeds med ideelle motorer, begrænset kameraudsyn og markørflader: 20/20 bekræftede mål, ingen falske succesmeldinger.
-- 20 kørselsseeds med translation 10 % kortere og rotation 10 % større: 18/20 bekræftede mål, ingen falske succesmeldinger. To forsøg stoppede uden bekræftet mål.
-- De fulde logfiler og simulationsdata ligger ved siden af denne tekst.
+20/20 normale køresimulationer med ideelle motorer og 20/20 med 10 % motorafvigelse bekræfter målet, uden falske succesmeldinger i disse scenarier. Alle forsøg har ét afsluttende stop-kald og ingen (v=0,w=0)-kommandoer efter fremkørslen begynder. Augmented recovery er deaktiveret i disse køresimulationer, som i den normale konfiguration.
 
-Simulationen bruger planare, perfekte range/bearing-målinger, når markørerne er synlige i kørselsforsøgene. Den stationære test tilføjer målefejl på 2 cm standardafvigelse og 1,5 grader. Kameraudsyn følger kalibreringen, og de simulerede frontflader afvises over 75 graders indfaldsvinkel. Bevægelsesforsøg modellerer ingen glidning i translationens retning, ROS-latens, occlusion, sonarstøj eller kamerafejl. Andre tests kontrollerer frosne/identiske billeder, manglende målinger, ugyldig sonar, kortintegration og faktisk syntetisk OpenCV-detektion.
+Nye tests dækker fast/slow-kvalitetsfald og log-space-underflow, ID-skift, bevarelse af prior uden observation, kortbegrænset sampling, samplingbudget på fuldt blokeret kort, uniforme vægte efter injektion, stop for recovery-usikkerhed, uafhængige snapshots af markørkortet, offline selflocalize med PNG og nulstilling af gammel lokaliseringsstatus ved ny prior.
 
-Disse tests viser, at de påviste softwarefejl er rettet i de testede scenarier. De er ikke en fysisk godkendelse af MIRTE eller en garanti for alle startopstillinger. Kontrollér kalibrering, sensorenheder og motor-API som beskrevet i README_DA.md.
+Den originale uniform_pdf-fejl og bevægelsesmodellens dobbelte rotation er reproduceret uden hardware. Kollegaens model gav (-1,0) for en noiseless 90-graders drejning efterfulgt af én enheds translation i dens +x/+y-konvention.
+
+En ekstra recovery-flytningstest er beskrevet i KOLLEGA_FLETNING_DA.md: recovery nåede ikke under 10 cm fejl efter 100 opdateringer i de tre afprøvede frø, selv om positionsspredningen blev lille. Det er ikke validering af robust automatisk recovery. Derfor er funktionen eksperimentel og FRA som standard.
+
+Ingen fysisk robot, KU_Mirte-driver eller ROS-kamerastream er afprøvet. Motorfaktorernes reelle effekt og lavhastighedsdødzone er stadig uverificerede.

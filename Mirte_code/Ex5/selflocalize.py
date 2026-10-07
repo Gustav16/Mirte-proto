@@ -272,19 +272,30 @@ try:
         fresh_cam = FreshCamera()
         mirte.executor.add_node(fresh_cam)
         mirte.camera_compressed_sub.destroy_subscription(mirte.camera_compressed_sub.subscription)
-        wait_start = time.time()
-        while fresh_cam.has_timestamps is None and time.time() - wait_start < 5.0: # wait for the first camera frame
-            time.sleep(0.1)
-        print("Camera timestamps from MIRTE:", fresh_cam.has_timestamps, "(None = no frame within 5 s)")
+        # New ROS2 connections take a while to be found over a hotspot: our camera subscriber, and MIRTE finding
+        # KU_Mirte's drive publisher. Drive commands sent before MIRTE listens are silently dropped, which made the
+        # first drives of a run stall or come up short. KU_Mirte sends every command on two topics, count both.
+        def drive_listeners():
+            return (mirte.movement_pub.publisher_mirte.get_subscription_count()
+                    + mirte.movement_pub.publisher_gazebo.get_subscription_count())
 
-        # Drive commands sent before MIRTE has discovered KU_Mirte's drive publisher are silently dropped.
-        # Over the hotspot that took up to ~30 s: the first drives of a run stalled or were cut short.
-        if driveToGoal:
-            wait_start = time.time()
-            while mirte.movement_pub.publisher_mirte.get_subscription_count() == 0 and time.time() - wait_start < 60.0:
-                time.sleep(0.2)
-            print("MIRTE listens to drive commands:", mirte.movement_pub.publisher_mirte.get_subscription_count() > 0,
-                  "(after %.1f s)" % (time.time() - wait_start))
+        print("Waiting for MIRTE's camera frames" + (" and for MIRTE to listen to drive commands" if driveToGoal else ""),
+              "(at most 30 s) ...")
+        wait_start = last_print = time.time()
+        while ((fresh_cam.has_timestamps is None or (driveToGoal and drive_listeners() == 0))
+               and time.time() - wait_start < 30.0):
+            time.sleep(0.2)
+            if time.time() - last_print > 5.0:
+                last_print = time.time()
+                print("  still waiting, %.0f s: camera frame received: %s, drive listeners: %d"
+                      % (time.time() - wait_start, fresh_cam.has_timestamps is not None, drive_listeners()))
+        print("Camera timestamps from MIRTE:", fresh_cam.has_timestamps,
+              "| MIRTE listens to drive commands:", drive_listeners() > 0, "(after %.1f s)" % (time.time() - wait_start))
+        if driveToGoal and drive_listeners() == 0:
+            # Seen on MIRTE: with 0 listeners not one of ~20 drive commands moved it. Drive anyway (in case the count
+            # is wrong), but say so loudly
+            print("\n*** WARNING: nothing on MIRTE listens to drive commands yet - MIRTE will probably not move. ***\n"
+                  "*** Check MIRTE's battery and restart MIRTE on the laptop's network if it doesn't move.       ***\n")
 
     # Allocate space for world map
     world = np.zeros((500,500,3), dtype=np.uint8)
@@ -412,8 +423,10 @@ try:
 
         # Make the robot drive: after FRAMES_PER_STOP frames at this stop, decide and make the next move
         if isRunningOnArlo() and phase in ("scan", "look", "drive"):
+            print("Frames at stop conditon succes")
             frames_at_stop += 1
             if frames_at_stop >= FRAMES_PER_STOP:
+                print("frames at stop >= is true")
                 frames_at_stop = 0
                 angle, dist, phase = next_move(est_pose, aug_mcl, seen_ids, z_last, looks_here)
                 looks_here = looks_here + 1 if phase == "look" else 0
@@ -463,5 +476,6 @@ finally:
     cv2.destroyAllWindows()
 
     # Clean-up capture thread
-    cam.terminateCaptureThread()
+    if 'cam' in globals(): # not created yet if the program was stopped during start-up
+        cam.terminateCaptureThread()
 

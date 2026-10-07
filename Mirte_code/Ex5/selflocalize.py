@@ -379,8 +379,8 @@ try:
         else:
             # No observation - reset weights to uniform distribution
             z_last = {}
-            if u[0] != 0.0 or u[1] != 0.0: # without a move or a measurement nothing changed (and the motion model adds noise for u = 0)
-                aug_mcl.particles = np.array([aug_mcl.sample_motion_model_with_map(u, x_last, m) for x_last in aug_mcl.particles])
+             # without a move or a measurement nothing changed (and the motion model adds noise for u = 0)
+            aug_mcl.particles = np.array([aug_mcl.sample_motion_model_with_map(u, x_last, m) for x_last in aug_mcl.particles])
             for p in aug_mcl.particles:
                 p.setWeight(1.0/num_particles)
 

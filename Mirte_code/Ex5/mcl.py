@@ -62,27 +62,36 @@ class MCL:
             delta = np.array([
             landmark_x - particle_x,
             landmark_y - particle_y])
-            bearing = np.mod(np.arctan2(delta[1], delta[0]) - particle_theta + np.pi, 
-                             2 * np.pi) - np.pi
+            bearing = np.arctan2(delta[0], delta[1]) - particle_theta
             res[id] = np.array([np.linalg.norm(delta), bearing]) #get distance and bearing to landmarks in a dictionary
         return res
 
-    def p_hit(self,z_measured ,z_true, sigma_hit, z_max):
-        "hit function we assume independece and use the product"
+    def p_hit(self, z_measured, z_true, sigma_hit, z_max):
         prop = 1
+
         for id in z_true:
-            #is_visvible_from_pose = self.is_visible(z_true[id][1], z_max[1])
-            is_visible_from_pose = True
+            is_visible_from_pose = self.is_visible(z_true[id][1], z_max[1])
             measured = z_measured.get(id)
 
             if measured is None:
                 if is_visible_from_pose:
-                    prop *= 0.3  # missed detection
-                else:
-                    continue
+                    prop *= 0.3
             else:
-                prop *= self.gaussian_pdf(measured[0], z_true[id][0], sigma_hit[0])
-                #prop *= self.gaussian_pdf(measured[1], z_true[id][1], sigma_hit[1]) #TODO add bearing std deviation
+                prop *= self.gaussian_pdf(
+                    measured[0], z_true[id][0], sigma_hit[0]
+                )
+                prop *= self.gaussian_pdf(
+                    measured[1], z_true[id][1], sigma_hit[1]
+                )
+
+
+        print(
+        "ID", id,
+        "measured:", measured,
+        "true:", z_true[id],
+        "distance error:", measured[0] - z_true[id][0],
+        "angle error:", measured[1] - z_true[id][1])
+
         return prop
 
     def p_range(self, z_measured, z_min, z_max, sigma_hit):
@@ -139,6 +148,12 @@ class MCL:
         "function for sampling motion model"
         d_rot_1 = u[1]
         d_trans = u[0]
+
+        #if no change add some random noise
+        if d_rot_1 == 0.0 and d_trans == 0.0:
+            x_t = [pcl.Particle(x_last.getX(), x_last.getY(), x_last.getTheta())]
+            pcl.add_uncertainty(x_t, 5, 0.1745) #stddev of 10 cm, and stddev theta of about 10 degrees
+            return x_t[0]
         d_rot_2 = 0 #we dont rotate after first rotation and transportation, but there may be noise
 
         d_rot_1_est = d_rot_1 + self.sample(self.alpha1*(d_rot_1**2)+ self.alpha2*(d_trans**2))
@@ -193,6 +208,9 @@ class MCL:
             self.W_slow += self.slow_const*(w_avg - self.W_slow)
 
         weights = np.cumsum(weights /np.sum(weights)) #smooth weights
+
+        print("w_avg:", w_avg, "W_fast:", self.W_fast, "W_slow:", self.W_slow,
+              "p_random:", max(0, 1-self.W_fast/self.W_slow))
         
         #redraw sample
         random_noise = np.random.rand(self.M) < max(0, 1- self.W_fast/self.W_slow)

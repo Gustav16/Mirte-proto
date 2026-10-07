@@ -205,9 +205,8 @@ class MCL:
             theta = phi + np.pi - (bearing + rn.randn(0.0, sigma_angle)) #camera looks back along phi, rotated by the bearing
             x = landmark_x + d*np.cos(phi) - self.camera_offset*np.cos(theta) #robot centre is camera_offset behind the camera
             y = landmark_y + d*np.sin(phi) - self.camera_offset*np.sin(theta)
-            if not m.in_collision([x,y]):
-                return pcl.Particle(x, y, theta, 1.0/self.M)
-        return self.add_noise(m)
+            
+            return pcl.Particle(x, y, theta, 1.0/self.M)
 
     def copy_particle(self, particle):
         return pcl.Particle(particle.getX(), particle.getY(), particle.getTheta(), particle.getWeight())
@@ -244,9 +243,6 @@ class MCL:
         #add random noise with propability p or redraw particle
         new_particles = [
             self.sample_from_measurement(z, m) if random_noise[i] else self.copy_particle(particles[indices[i]]) for i in range(self.M)]
-
-        #jitter so resampled copies don't collapse into one particle when standing still
-        pcl.add_uncertainty(new_particles, self.jitter_sigma, self.jitter_sigma_theta)
 
         #set new belief distribution
         self.particles = np.array(new_particles)

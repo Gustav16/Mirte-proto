@@ -17,7 +17,7 @@ sys.path.append(
 )
 
 # Flags
-showGUI = True  # Whether or not to open GUI windows
+showGUI = False  # Whether or not to open GUI windows
 onRobot = True  # Whether or not we are running on MIRTE (camera frames over ROS2), False = laptop camera + keyboard
 driveToGoal = True  # On MIRTE: scan, localise and drive to the midpoint between the landmarks. False = stand still and only localise
 

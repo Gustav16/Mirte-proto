@@ -68,7 +68,7 @@ landmark_colors = [CRED, CGREEN] # Colors used when drawing the landmarks
 # the mirror image of the pose behind the boxes fits the measurements just as well, so the map stops 30 cm
 # (about one box depth) behind the face line to rule it out.
 m = local_map.LocalMap(low=(-100.0, -250.0),
-        high=(500.0, 30.0), landmark_radius=2,
+        high=(500.0, 300.0), landmark_radius=2,
                 mirte_radius=2)
 
 m.landmarks = [[list(landmarks[ID]), ID] for ID in landmarkIDs] # same landmarks as above, in the map's format

@@ -207,29 +207,26 @@ from visualize_local_map import plot_local_map, plot_path, PNG_PATH
 
 def Execute_path(path, pose, mirte):
     path.reverse()
-    current_pose = pose
-    linear_offset = -0.0354
+    current_pose = np.array(pose, dtype=float).copy()
 
-    linear_speed = 0.3   # m/s
-    angular_speed = 0.7   # rad/s
+    linear_offset = -0.0354
+    linear_speed = 0.3
+    angular_speed = 0.7
 
     for point in path[1:]:
         dx = point[0] - current_pose[0]
         dy = point[1] - current_pose[1]
 
-        distance = np.linalg.norm(np.array([dx, dy])/100)
+        distance = np.linalg.norm(np.array([dx, dy]) / 100)
 
         if distance <= 1e-6:
             continue
 
-        # Direction towards next point
-        target_theta = np.arctan2(-dx, dy)
+        target_theta = np.arctan2(dy, dx)
 
-        # Required rotation
         dtheta = target_theta - current_pose[2]
         dtheta = np.arctan2(np.sin(dtheta), np.cos(dtheta))
 
-        # Rotate at fixed angular speed
         if abs(dtheta) > 1e-6:
             scaler = 1.05 if dtheta > 0 else 1.10
 
@@ -239,14 +236,13 @@ def Execute_path(path, pose, mirte):
                 scaler * abs(dtheta) / angular_speed
             )
 
-        # Drive at fixed linear speed
         mirte.drive(
             linear_speed,
             linear_offset,
             distance / linear_speed
         )
 
-        # Update estimated pose
+        # Update predicted pose without modifying the input pose.
         current_pose[0] = point[0]
         current_pose[1] = point[1]
         current_pose[2] = np.mod(target_theta, 2.0 * np.pi)

@@ -38,19 +38,22 @@ LANDMARK_RADIUS = 0.20  # 20 cm, keep in sync with LocalMap.landmark_radius
 # 2x2 m local map, centered on mirte.
 MAP_XLIM = (-1, 1)
 MAP_YLIM = (0, 2)
-GRID_STEP = 0.25  # 25 cm
+GRID_STEP = 25  # 25 cm
 
 
 # --------------------------------------------------
 # Plotting
 # --------------------------------------------------
 
-def plot_local_map(landmarks):
+def plot_local_map(landmarks, m, mirte_pos):
     plt.clf()
     ax = plt.gca()
 
+    MIRTE_RADIUS = m.mirte_radius  # 22 cm, keep in sync with LocalMap.mirte_radius
+    LANDMARK_RADIUS = m.landmark_radius
+
     # Mirte position
-    ax.add_patch(Circle((0, 0), MIRTE_RADIUS, color='blue', alpha=0.3))
+    ax.add_patch(Circle(mirte_pos, MIRTE_RADIUS, color='blue', alpha=0.3))
     plt.scatter(0, 0)
     plt.text(0, 0, "Mirte", fontsize=10)
 
@@ -66,6 +69,9 @@ def plot_local_map(landmarks):
             f"ID {landmark_id}",
             fontsize=10
         )
+
+    MAP_XLIM = (m.low[0], m.high[0])
+    MAP_YLIM = (m.low[1], m.high[1])
 
     plt.axhline(0, linewidth=1)
     plt.axvline(0, linewidth=1)

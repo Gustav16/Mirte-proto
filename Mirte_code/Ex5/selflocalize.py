@@ -8,7 +8,9 @@ import sys
 from mcl import MCL
 import run_plots
 import local_map
+import matplotlib.pyplot as plt
 import os
+
 sys.path.append(
     os.path.join(
         os.path.dirname(__file__),
@@ -379,6 +381,7 @@ try:
         # Appended (not inserted) so Ex5's own local_map stays the one that is used (same LocalMap class as Ex4's)
         sys.path.append(os.path.join(os.path.dirname(os.path.abspath(__file__)), "../Ex4/rrt"))
         from mirte_rrt import RRT, simplify_path, Execute_path
+        from visualize_local_map import plot_local_map, plot_path
         import robot_models
         # Our own camera subscriber (fresh_camera.py): best effort, and with the time each frame was taken,
         # so frames taken before or during a move can be skipped. KU_Mirte's own subscription is stopped,
@@ -587,8 +590,16 @@ try:
                         # Execute_path drives from (0, 0) facing +y: give it the simplified path in MIRTE's own frame
                         # (the path starts at the estimated position, so its first point becomes (0, 0))
                         Execute_path(rrt_path, [est_pose.getX(), est_pose.getY(), est_pose.getTheta()] ,mirte)
+                        
                         u_pending = [0.0, 0.0] # the moves are already in the particles
                         move_end_time = time.time()
+
+                        PNG_PATH = "map.png"
+                        plot_local_map(m.landmarks,m, (est_pose.getX(), est_pose.getY()))
+                        plot_path(rrt_path, start=rrt_path[-1], goal=rrt_path[0])
+                        plt.savefig(PNG_PATH, dpi=200, bbox_inches="tight")
+                        print(f"Saved plot to: {PNG_PATH}")
+                        plt.pause(0.01)  # Need for Mac
                         break # we are done
                         continue # logged above, the next look decides if MIRTE is at the goal
                 else:

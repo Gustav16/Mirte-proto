@@ -109,10 +109,14 @@ MAX_LOOKS = 3                  # stops in a row to stay and look again before tu
 MAX_LEG = 50.0                 # cm, drive at most this far before stopping to look again (only while a landmark is in view)
 GOAL_TOLERANCE = 10.0          # cm, close enough to the goal
 
+
+X_VAR_ERR = 30**2
+Y_VAR_ERR = 30**2
+THETA_VAR_ERR = 20**2
+
 # Run log: every decision stop is saved to runs/ and plotted by run_plots.py when the program ends
 TRUE_START = None              # optional tape-measured start pose (x cm, y cm, theta rad) for the plots, e.g. (60.5, -164.0, np.pi/2)
 RUNS_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), "runs")
-
 
 
 
@@ -208,6 +212,45 @@ def pose_spread(particles, est_pose):
     dtheta = np.abs(np.mod(thetas - est_pose.getTheta() + np.pi, 2 * np.pi) - np.pi)
     return np.median(dist), np.median(dtheta)
 
+def pose_variance(est_pose, particles_list):
+    """Calculate the variance of x, y, and theta across particles."""
+    if len(particles_list) == 0:
+        return 0.0, 0.0, 0.0
+
+    # Estimate the mean pose
+    mean_pose = est_pose
+
+    x_mean = mean_pose.getX()
+    y_mean = mean_pose.getY()
+    theta_mean = mean_pose.getTheta()
+
+    # Extract particle poses
+    x = np.array([p.getX() for p in particles_list])
+    y = np.array([p.getY() for p in particles_list])
+    theta = np.array([p.getTheta() for p in particles_list])
+
+    # Position variances
+    x_var = np.mean((x - x_mean) ** 2)
+    y_var = np.mean((y - y_mean) ** 2)
+
+    # Angular variance using wrapped angular differences
+    theta_diff = np.arctan2(
+        np.sin(theta - theta_mean),
+        np.cos(theta - theta_mean)
+    )
+    theta_var = np.mean(theta_diff ** 2)
+
+    return x_var, y_var, theta_var
+
+def has_converged(est_pose, mcl, x_var_err, y_var_err, theta_var_err):
+    "method for checking convergence"
+    x_var, y_var, theta_var = pose_variance(est_pose, mcl.particles)
+
+    return (x_var < x_var_err
+        and y_var < y_var_err
+        and theta_var < theta_var_err
+    )
+
 
 def next_move(est_pose, mcl, seen_ids, z_last, looks_here):
     """Driving strategy. Returns (turn (rad), distance (cm), phase).
@@ -220,12 +263,13 @@ def next_move(est_pose, mcl, seen_ids, z_last, looks_here):
            every extra start is a chance for the wheels to stall
     done:  within GOAL_TOLERANCE of the goal"""
     spread_pos, spread_theta = pose_spread(mcl.particles, est_pose)
+    converged = has_converged(est_pose, mcl, X_VAR_ERR, Y_VAR_ERR, THETA_VAR_ERR)
     z_est = mcl.true_z_for_landmarks(est_pose, m)
     explained = all(abs(z_last[ID][0] - z_est[ID][0]) < MAX_ERROR_DIST and
                     abs(np.mod(z_last[ID][1] - z_est[ID][1] + np.pi, 2 * np.pi) - np.pi) < MAX_ERROR_ANGLE
                     for ID in z_last)
-    localised = (set(landmarkIDs) <= seen_ids and spread_pos < MAX_SPREAD_POS and spread_theta < MAX_SPREAD_THETA
-                 and explained)
+    #localised = (len(z_last ) >= 1 and converged and explained)
+    localised = (len(z_last ) >= 1 and converged)
     dx = GOAL[0] - est_pose.getX()
     dy = GOAL[1] - est_pose.getY()
     dist = np.hypot(dx, dy)
@@ -497,12 +541,13 @@ try:
         if isRunningOnArlo() and phase in ("scan", "look", "drive"):
             print("Frames at stop conditon succes")
             frames_at_stop += 1
+
             if frames_at_stop >= FRAMES_PER_STOP:
                 print("frames at stop >= is true")
                 frames_at_stop = 0
                 angle, dist, phase = next_move(est_pose, aug_mcl, seen_ids, z_last, looks_here)
-                looks_here = looks_here + 1 if phase == "look" else 0
-                scan_turns = 0 if z_last else scan_turns + (phase == "scan")
+                looks_here = looks_here + 1 if phase == "look" and len(z_last) < 2 else 0
+                scan_turns = scan_turns if len(z_last) >= 2 else scan_turns + (phase == "scan")
                 if scan_turns > MAX_SCAN_TURNS:
                     phase = "failed"
                     print("No landmark seen during a full turn - stopping. Seen landmarks:", seen_ids)
@@ -520,6 +565,7 @@ try:
                         phase = "look"
                         angle, dist = 0.0, 0.0
                     else:
+                        scan_turns = 0
                         print("RRT simplified path (world, m, start first):", [tuple(np.round(p, 2)) for p in reversed(rrt_path)])
                         # While a box is in view, drive only the first MAX_LEG of the path and then look again: a long
                         # drive that was cut short (seen on MIRTE: 53 of 181 cm) is then caught while it is still small
@@ -543,6 +589,7 @@ try:
                         Execute_path(rrt_path, [est_pose.getX(), est_pose.getY(), est_pose.getTheta()] ,mirte)
                         u_pending = [0.0, 0.0] # the moves are already in the particles
                         move_end_time = time.time()
+                        break # we are done
                         continue # logged above, the next look decides if MIRTE is at the goal
                 else:
                     print(phase, ": turn", np.degrees(angle), "deg, then drive", dist, "cm")

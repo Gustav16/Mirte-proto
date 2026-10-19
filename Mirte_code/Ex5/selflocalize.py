@@ -101,8 +101,8 @@ TURN_SCALER_RIGHT = 1.10
 # Driving strategy
 FRAMES_PER_STOP = 3            # new camera frames used at each stop before the next move
 SETTLE_TIME = 0.3              # s, only use frames taken at least this long after a move ended (MIRTE has stopped rocking)
-SCAN_STEP = np.radians(25)     # turn left this much between looks while scanning (the camera sees about +-28 deg)
-MAX_SCAN_TURNS = np.radians(360)/SCAN_STEP           # give up after a bit more than a full turn without seeing any landmark
+SCAN_STEP = np.radians(20)     # turn left this much between looks while scanning (the camera sees about +-28 deg)
+MAX_SCAN_TURNS = np.radians(360)//SCAN_STEP           # give up after a bit more than a full turn without seeing any landmark
 MAX_SPREAD_POS = 15.0          # cm, localised when the median particle is this close to the estimate ...
 MAX_SPREAD_THETA = np.radians(10) # ... and its heading this close
 MAX_ERROR_DIST = 15.0          # cm, ... and the estimate predicts the measured distances this well
@@ -435,6 +435,7 @@ try:
     move_end_time = 0.0     # time.time() when the last move ended, older frames are not used
     frames_at_stop = 0      # frames processed since the last move
     seen_ids = set()        # landmarks seen so far
+    seen_last = 0
     z_last = {}             # landmarks in the last processed frame
     scan_turns = 0          # scan turns in a row without seeing any landmark
     looks_here = 0          # stops in a row spent looking again without moving
@@ -550,10 +551,68 @@ try:
                 #frames_at_stop = 0
             angle, dist, phase = next_move(est_pose, aug_mcl, seen_ids, z_last, looks_here)
             looks_here = looks_here + 1 if phase == "look" and len(z_last) < 2 else 0
-            scan_turns = scan_turns if len(z_last) >= 2 else scan_turns + (phase == "scan")
-            if scan_turns > MAX_SCAN_TURNS:
+            #reset scan turns if we see new 
+            scan_turns = 0 if len(seen_ids) > seen_last else scan_turns + (phase == "scan")
+            if scan_turns > MAX_SCAN_TURNS and not seen_ids:
                 phase = "failed"
                 print("No landmark seen during a full turn - stopping. Seen landmarks:", seen_ids)
+            if scan_turns > MAX_SCAN_TURNS:
+                #we turned 360
+                #move random 
+                if z_last:
+                    print('we move to side of seen arcuo')
+                    first_id = next(iter(z_last))
+                    dist, angle = z_last[first_id]
+
+                    # Point 1 m to the left of the ArUco
+                    offset_angle = np.arctan2(100, dist)
+                    goal_angle = angle + offset_angle
+                    goal_dist = np.hypot(dist, 100)  # cm
+
+                    # 1. Turn toward the offset point
+                    dtheta = np.arctan2(np.sin(goal_angle), np.cos(goal_angle))
+
+                    if abs(dtheta) > 1e-6:
+                        mirte.drive(
+                            0.0,
+                            np.sign(dtheta) * ANGULAR_SPEED,
+                            abs(dtheta) / ANGULAR_SPEED
+                        )
+                    
+
+                    # 2. Drive to the side of the ArUco
+                    drive_distance = goal_dist / 100  # cm -> m
+
+                    mirte.drive(
+                        LINEAR_SPEED,
+                        LINEAR_OFFSET,
+                        drive_distance / LINEAR_SPEED
+                    )
+                    u = [goal_dist,dtheta]
+                    aug_mcl.particles = np.array([aug_mcl.sample_motion_model_with_map(u, x_last, m) for x_last in aug_mcl.particles])
+                    for p in aug_mcl.particles:
+                        p.setWeight(1.0/num_particles)
+                    
+
+                    # 3. Turn to face the ArUco
+                    turn_to_aruco = -offset_angle
+
+                    mirte.drive(
+                        0.0,
+                        np.sign(turn_to_aruco) * ANGULAR_SPEED,
+                        abs(turn_to_aruco) / ANGULAR_SPEED
+                    )
+                    u_pending = [0.0,turn_to_aruco]
+
+
+
+
+                else:
+                    print('could not find arcuo again, will try rotating again')
+                    scan_turns = 0
+                    u_pending = [0.0, 0.0]
+            
+                
             elif phase == "done":
                 print("At the goal", GOAL, "- estimated pose:", est_pose.getX(), est_pose.getY(),
                         "theta (deg):", np.degrees(est_pose.getTheta()))

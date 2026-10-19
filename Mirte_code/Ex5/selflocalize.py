@@ -553,10 +553,11 @@ try:
             looks_here = looks_here + 1 if phase == "look" and len(z_last) < 2 else 0
             #reset scan turns if we see new 
             scan_turns = 0 if len(seen_ids) > seen_last else scan_turns + (phase == "scan")
-            if scan_turns > MAX_SCAN_TURNS and not seen_ids:
+            seen_last = len(seen_ids)
+            if scan_turns >= MAX_SCAN_TURNS and not seen_ids:
                 phase = "failed"
                 print("No landmark seen during a full turn - stopping. Seen landmarks:", seen_ids)
-            if scan_turns > MAX_SCAN_TURNS:
+            if scan_turns >= MAX_SCAN_TURNS:
                 #we turned 360
                 #move random 
                 if z_last:

@@ -70,8 +70,8 @@ def plot_local_map(landmarks, m, mirte_pos):
             fontsize=10
         )
 
-    MAP_XLIM = (m.low[0], m.high[0])
-    MAP_YLIM = (m.low[1], m.high[1])
+    MAP_XLIM = (m.map_area[0][0], m.map_area[1][0])
+    MAP_YLIM = (m.map_area[0][1], m.map_area[1][1])
 
     plt.axhline(0, linewidth=1)
     plt.axvline(0, linewidth=1)

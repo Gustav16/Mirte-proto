@@ -58,11 +58,11 @@ CBLACK = (0, 0, 0)
 
 # Landmarks.
 # The robot knows the position of 2 landmarks. Their coordinates are in the unit centimeters [cm].
-landmarkIDs = [4, 2] # IDs of the landmarks in the world
+landmarkIDs = [7, 5] # IDs of the landmarks in the world
 # x = box centre, y = 0 on the line of the front faces (where the markers are, which is what the camera measures to).
 landmarks = {
-    4: (0.0, 0.0),  # Coordinates for landmark 4
-    2: (121.0, 0.0)  # Coordinates for landmark 2: outer edges 150 cm apart, boxes 29 cm wide -> centres 121 cm apart
+    landmarkIDs[0]: (0.0, 0.0),  # Coordinates for landmark 4
+    landmarkIDs[1]: (121.0, 0.0)  # Coordinates for landmark 2: outer edges 150 cm apart, boxes 29 cm wide -> centres 121 cm apart
 }
 landmark_colors = [CRED, CGREEN] # Colors used when drawing the landmarks
 
@@ -102,7 +102,7 @@ TURN_SCALER_RIGHT = 1.10
 FRAMES_PER_STOP = 3            # new camera frames used at each stop before the next move
 SETTLE_TIME = 0.3              # s, only use frames taken at least this long after a move ended (MIRTE has stopped rocking)
 SCAN_STEP = np.radians(25)     # turn left this much between looks while scanning (the camera sees about +-28 deg)
-MAX_SCAN_TURNS = 16            # give up after a bit more than a full turn without seeing any landmark
+MAX_SCAN_TURNS = np.radians(360)/SCAN_STEP           # give up after a bit more than a full turn without seeing any landmark
 MAX_SPREAD_POS = 15.0          # cm, localised when the median particle is this close to the estimate ...
 MAX_SPREAD_THETA = np.radians(10) # ... and its heading this close
 MAX_ERROR_DIST = 15.0          # cm, ... and the estimate predicts the measured distances this well
@@ -545,69 +545,69 @@ try:
             print("Frames at stop conditon succes")
             frames_at_stop += 1
 
-            if frames_at_stop >= FRAMES_PER_STOP:
-                print("frames at stop >= is true")
-                frames_at_stop = 0
-                angle, dist, phase = next_move(est_pose, aug_mcl, seen_ids, z_last, looks_here)
-                looks_here = looks_here + 1 if phase == "look" and len(z_last) < 2 else 0
-                scan_turns = scan_turns if len(z_last) >= 2 else scan_turns + (phase == "scan")
-                if scan_turns > MAX_SCAN_TURNS:
-                    phase = "failed"
-                    print("No landmark seen during a full turn - stopping. Seen landmarks:", seen_ids)
-                elif phase == "done":
-                    print("At the goal", GOAL, "- estimated pose:", est_pose.getX(), est_pose.getY(),
-                          "theta (deg):", np.degrees(est_pose.getTheta()))
-                elif phase == "drive":
-                    # Localised: plan in the world frame from the estimated pose (measurements + motion updates)
-                    # with Ex4's RRT + simplify_path, drive the simplified path with Ex4's Execute_path, then look
-                    # again (at the goal: done, otherwise plan again from the updated estimate)
-                    pose = (est_pose.getX(), est_pose.getY(), est_pose.getTheta())
-                    rrt_path = rrt_plan(pose, m) # simplified path, world frame (m), goal first
-                    if rrt_path is None:
-                        print("RRT found no path to the goal - looking again")
-                        phase = "look"
-                        angle, dist = 0.0, 0.0
-                    else:
-                        scan_turns = 0
-                        print("RRT simplified path (world, m, start first):", [tuple(np.round(p, 2)) for p in reversed(rrt_path)])
-                        # While a box is in view, drive only the first MAX_LEG of the path and then look again: a long
-                        # drive that was cut short (seen on MIRTE: 53 of 181 cm) is then caught while it is still small
-                        # if z_last:
-                        #     rrt_path = simplify_path(rrt_path)
-                        #     print("  box in view: driving the first %.0f cm, then looking again" % MAX_LEG)
-                        moves = path_moves(pose, rrt_path)
-                        # log each move with the estimate before it, and let the particle filter follow it
-                        for move_turn, move_dist in moves:
-                            move_est = aug_mcl.estimate_pose()
-                            log["steps"].append({
-                                "time": time.time() - start_time, "phase": "drive",
-                                "particles": np.array([[p.getX(), p.getY(), p.getTheta()] for p in aug_mcl.particles]),
-                                "estimate": (move_est.getX(), move_est.getY(), move_est.getTheta()),
-                                "z": {ID: (float(d), float(a)) for ID, (d, a) in z_last.items()},
-                                "move": (move_turn, move_dist)})
-                            aug_mcl.particles = np.array([aug_mcl.sample_motion_model_with_map([move_dist, move_turn], x_last, m)
-                                                          for x_last in aug_mcl.particles])
-                        # Execute_path drives from (0, 0) facing +y: give it the simplified path in MIRTE's own frame
-                        # (the path starts at the estimated position, so its first point becomes (0, 0))
-                        Execute_path(rrt_path, [est_pose.getX(), est_pose.getY(), est_pose.getTheta()] ,mirte)
-                        
-                        u_pending = [0.0, 0.0] # the moves are already in the particles
-                        move_end_time = time.time()
-
-                        PNG_PATH = "map.png"
-                        plot_local_map(m.landmarks,m, (est_pose.getX(), est_pose.getY()))
-                        plot_path(rrt_path, start=rrt_path[-1], goal=rrt_path[0])
-                        plt.savefig(PNG_PATH, dpi=200, bbox_inches="tight")
-                        print(f"Saved plot to: {PNG_PATH}")
-                        plt.pause(0.01)  # Need for Mac
-                        break # we are done
-                        continue # logged above, the next look decides if MIRTE is at the goal
+            #if frames_at_stop >= FRAMES_PER_STOP:
+                #print("frames at stop >= is true")
+                #frames_at_stop = 0
+            angle, dist, phase = next_move(est_pose, aug_mcl, seen_ids, z_last, looks_here)
+            looks_here = looks_here + 1 if phase == "look" and len(z_last) < 2 else 0
+            scan_turns = scan_turns if len(z_last) >= 2 else scan_turns + (phase == "scan")
+            if scan_turns > MAX_SCAN_TURNS:
+                phase = "failed"
+                print("No landmark seen during a full turn - stopping. Seen landmarks:", seen_ids)
+            elif phase == "done":
+                print("At the goal", GOAL, "- estimated pose:", est_pose.getX(), est_pose.getY(),
+                        "theta (deg):", np.degrees(est_pose.getTheta()))
+            elif phase == "drive":
+                # Localised: plan in the world frame from the estimated pose (measurements + motion updates)
+                # with Ex4's RRT + simplify_path, drive the simplified path with Ex4's Execute_path, then look
+                # again (at the goal: done, otherwise plan again from the updated estimate)
+                pose = (est_pose.getX(), est_pose.getY(), est_pose.getTheta())
+                rrt_path = rrt_plan(pose, m) # simplified path, world frame (m), goal first
+                if rrt_path is None:
+                    print("RRT found no path to the goal - looking again")
+                    phase = "look"
+                    angle, dist = 0.0, 0.0
                 else:
-                    print(phase, ": turn", np.degrees(angle), "deg, then drive", dist, "cm")
-                    turn(mirte, angle)
-                    drive(mirte, dist)
-                    u_pending = [dist, angle]
+                    scan_turns = 0
+                    print("RRT simplified path (world, m, start first):", [tuple(np.round(p, 2)) for p in reversed(rrt_path)])
+                    # While a box is in view, drive only the first MAX_LEG of the path and then look again: a long
+                    # drive that was cut short (seen on MIRTE: 53 of 181 cm) is then caught while it is still small
+                    # if z_last:
+                    #     rrt_path = simplify_path(rrt_path)
+                    #     print("  box in view: driving the first %.0f cm, then looking again" % MAX_LEG)
+                    moves = path_moves(pose, rrt_path)
+                    # log each move with the estimate before it, and let the particle filter follow it
+                    for move_turn, move_dist in moves:
+                        move_est = aug_mcl.estimate_pose()
+                        log["steps"].append({
+                            "time": time.time() - start_time, "phase": "drive",
+                            "particles": np.array([[p.getX(), p.getY(), p.getTheta()] for p in aug_mcl.particles]),
+                            "estimate": (move_est.getX(), move_est.getY(), move_est.getTheta()),
+                            "z": {ID: (float(d), float(a)) for ID, (d, a) in z_last.items()},
+                            "move": (move_turn, move_dist)})
+                        aug_mcl.particles = np.array([aug_mcl.sample_motion_model_with_map([move_dist, move_turn], x_last, m)
+                                                        for x_last in aug_mcl.particles])
+                    # Execute_path drives from (0, 0) facing +y: give it the simplified path in MIRTE's own frame
+                    # (the path starts at the estimated position, so its first point becomes (0, 0))
+                    Execute_path(rrt_path, [est_pose.getX(), est_pose.getY(), est_pose.getTheta()] ,mirte)
+                    
+                    u_pending = [0.0, 0.0] # the moves are already in the particles
                     move_end_time = time.time()
+
+                    PNG_PATH = "map.png"
+                    plot_local_map(m.landmarks,m, (est_pose.getX(), est_pose.getY()))
+                    plot_path(rrt_path, start=rrt_path[-1], goal=rrt_path[0])
+                    plt.savefig(PNG_PATH, dpi=200, bbox_inches="tight")
+                    print(f"Saved plot to: {PNG_PATH}")
+                    plt.pause(0.01)  # Need for Mac
+                    break # we are done
+                    continue # logged above, the next look decides if MIRTE is at the goal
+            else:
+                print(phase, ": turn", np.degrees(angle), "deg, then drive", dist, "cm")
+                turn(mirte, angle)
+                drive(mirte, dist)
+                u_pending = [dist, angle]
+                move_end_time = time.time()
 
                 # Log this stop: copies, since the particles change in place afterwards
                 log["steps"].append({

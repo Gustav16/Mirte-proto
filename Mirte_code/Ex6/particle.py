@@ -1,0 +1,137 @@
+import numpy as np
+import random_numbers as rn
+
+
+class Particle(object):
+    """Data structure for storing particle information (state and weight)"""
+    def __init__(self, x=0.0, y=0.0, theta=0.0, weight=0.0):
+        self.x = x
+        self.y = y
+        self.theta = np.mod(theta, 2.0*np.pi)
+        self.weight = weight
+
+    def getX(self):
+        return self.x
+        
+    def getY(self):
+        return self.y
+        
+    def getTheta(self):
+        return self.theta
+        
+    def getWeight(self):
+        return self.weight
+
+    def setX(self, val):
+        self.x = val
+
+    def setY(self, val):
+        self.y = val
+
+    def setTheta(self, val):
+        self.theta = np.mod(val, 2.0*np.pi)
+
+    def setWeight(self, val):
+        self.weight = val
+
+
+def estimate_pose(particles_list):
+    """Estimate the pose from particles by computing the average position and orientation over all particles. 
+    This is not done using the particle weights, but just the sample distribution."""
+    x_sum = 0.0
+    y_sum = 0.0
+    cos_sum = 0.0
+    sin_sum = 0.0
+     
+    for particle in particles_list:
+        x_sum += particle.getX()
+        y_sum += particle.getY()
+        cos_sum += np.cos(particle.getTheta())
+        sin_sum += np.sin(particle.getTheta())
+        
+    flen = len(particles_list)
+    if flen != 0:
+        x = x_sum / flen
+        y = y_sum / flen
+        theta = np.arctan2(sin_sum/flen, cos_sum/flen)
+    else:
+        x = x_sum
+        y = y_sum
+        theta = 0.0
+        
+    return Particle(x, y, theta)
+     
+     
+def move_particle(particle, delta_x, delta_y, delta_theta):
+    """Move the particle by (delta_x, delta_y, delta_theta)"""
+    particle.x += delta_x
+    particle.y += delta_y
+    particle.theta = np.mod(particle.theta + delta_theta, 2.0*np.pi)
+
+
+def add_uncertainty(particles_list, sigma, sigma_theta):
+    """Add some noise to each particle in the list. Sigma and sigma_theta is the noise
+    variances for position and angle noise."""
+    for particle in particles_list:
+        particle.x += rn.randn(0.0, sigma)
+        particle.y += rn.randn(0.0, sigma)
+        particle.theta = np.mod(particle.theta + rn.randn(0.0, sigma_theta), 2.0 * np.pi) 
+
+
+def add_uncertainty_von_mises(particles_list, sigma, theta_kappa):
+    """Add some noise to each particle in the list. Sigma and theta_kappa is the noise
+    variances for position and angle noise."""
+    for particle in particles_list:
+        particle.x += rn.randn(0.0, sigma)
+        particle.y += rn.randn(0.0, sigma)
+        particle.theta = np.mod(rn.rand_von_mises(particle.theta, theta_kappa), 2.0 * np.pi) - np.pi
+
+
+# pretty simple helper function that uses landmarks and particles to get the
+# distance and angle the camera would measure if the robot stood at this particle pose.
+def expected_measurement(particle, landmark, camera_offset = 0.0):
+    cam_x = particle.getX() + camera_offset * np.cos(particle.getTheta())
+    cam_y = particle.getY() + camera_offset * np.sin(particle.getTheta())
+
+    dx = landmark[0] - cam_x
+    dy = landmark[1] -cam_y
+
+    dist = np.sqrt(dx * dx + dy* dy)
+    angle = np.arctan2(dy, dx) - particle.getTheta()
+    angle = np.arctan2(np.sin(angle), np.cos(angle))
+
+    return dist, angle
+
+
+def gaussian(error, sigma):
+    return np.exp(-0.5 * (error / sigma) ** 2) / (np.sqrt(2.0 * np.pi) * sigma)
+
+
+def measurement_weight(particle, dist, angle, landmark, sigma_dist, sigma_angle, camera_offset = 0.0):
+    exp_dist, exp_angle = expected_measurement(particle, landmark, camera_offset)
+    angle_error = np.arctan2(np.sin(angle - exp_angle), np.cos(angle-exp_angle))
+    return gaussian(dist-exp_dist, sigma_dist) * gaussian(angle_error, sigma_angle)
+
+# now that we have some initals weights we want to normalise them to 1, by summing.
+# and then we want to do a resamle, using these neew weigths.
+
+def normalise_weights(particles_list): 
+    total = sum(p.getWeight() for p in particles_list)
+    n = len(particles_list)
+    for p in particles_list: 
+        p.setWeight(p.getWeight() / total if total > 0.0 else 1.0 / n)
+# draw new set off particles, each old particle isnpicked with the propability equal its weight.
+def resample(particles_list): 
+    n= len(particles_list)
+    weights = [p.getWeight() for p in particles_list]
+    picks = np.random.choice(n, size=n, p=weights)
+    return [Particle(particles_list[i].getX(), particles_list[i].getY(), particles_list[i].getTheta(), 1.0/n)for i in picks]
+
+def initialize_particles(num_particles, m):
+    particles = []
+    for i in range(num_particles):
+        # Random starting points. 
+        p = Particle(np.random.uniform(m.map_area[0][0], m.map_area[1][0]), np.random.uniform(m.map_area[0][1], m.map_area[1][1]), np.mod(2.0*np.pi*np.random.ranf(), 2.0*np.pi), 1.0/num_particles)
+        particles.append(p)
+
+    return particles

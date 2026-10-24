@@ -11,7 +11,7 @@ class MCL:
                     alpha2 = 3e-7,  # rotation noise from translation [rad^2/cm^2]: ~3 deg heading std per metre TODO tune
                     alpha3 = 0.0025, # translation noise from translation [cm^2/cm^2]: drive std = 5% of the distance TODO tune
                     alpha4 = 0.5,  # translation noise from rotation [cm^2/rad^2]: ~1 cm std for a 90 deg turn TODO tune
-                    fast_const = 0.3, #with 0.1/0.001 w_slow stayed at the poor first frames and no particles were ever injected
+                    fast_const = 0.3, #with 0.1/0.001 w_slow stayed at the poor first frames and no particles were ever injected #TODO increse fast so less random noise is injected
                     slow_const = 0.02, #0.3/0.02 reached the goal in 60/60 simulated runs (0.5/0.05 injected too often)
                     jitter_sigma = 2.0, # cm, std of position noise added after resampling
                     jitter_sigma_theta = 0.02, # rad, std of heading noise added after resampling
@@ -286,7 +286,7 @@ class MCL:
 
         return x_var, y_var, theta_var
 
-    def has_converged(est_pose, mcl, x_var_err, y_var_err, theta_var_err):
+    def has_converged(est_pose, mcl, x_var_err, y_var_err, theta_var_err) -> bool:
         "method for checking convergence"
         x_var, y_var, theta_var = mcl.pose_variance(est_pose, mcl.particles)
 

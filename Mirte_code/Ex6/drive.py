@@ -68,7 +68,7 @@ def Execute_path(path, pose, mirte, mcl, local_landmarks, local_obstacles, landm
         cam.print_observations(new_z, new_local_landmarks, new_local_obstacles)
         
         #replan check
-        replan = main.should_replan(local_landmarks, local_obstacles, new_local_landmarks, new_local_obstacles, map.map_area, current_pose, target, global_plan)
+        replan = main.should_replan(local_landmarks, local_obstacles, new_local_landmarks, new_local_obstacles, map, current_pose, target, global_plan)
 
         if replan:
             print('new observation made, replanning in order')

@@ -3,10 +3,11 @@ import local_map
 from mcl import MCL
 import particle as pcl
 import camera as cam
-from rrt import RRT, simplify_path, Execute_path
+from rrt import RRT, simplify_path
 import robot_models
 import numpy as np
 import time
+import drive
 
 
 from ku_mirte import KU_Mirte
@@ -22,7 +23,7 @@ landmarks = {
     landmarkIDs[3]: (300.0, 400.0)  
 }
 
-
+### Target class ###
 class Target:
     "class for targets so we can pass them as pointers"
     def __init__(self, id):
@@ -91,15 +92,16 @@ turns = 0
 SCAN_STEP = np.radians(20)
 MAX_TURNS = (np.radians(360)//SCAN_STEP) - 2
 
-def reset_turn_variables():
+### Method for reseting turning varibles ###
+def reset_turn_variables() -> None:
+    "method for reseting varibles used in turning scheme"
     global HAS_TURNED_LEFT, HAS_TURNED_RIGHT, turns
 
     HAS_TURNED_LEFT = False
     HAS_TURNED_RIGHT = False
     turns = 0
 
-
-
+### Methods for setting and updating target ###
 def pop(target_stack, m) -> Target:
     "returns the new target"
     if target_stack:
@@ -109,14 +111,14 @@ def pop(target_stack, m) -> Target:
         return new_target
     raise ValueError('stack empty but pop was called')
         
-def target_update(target, previous_target, m) -> None:
+def target_update(target, previous_target, m) -> tuple[None, Target]:
     "method for updating target"
     if previous_target:
         #update and increase border restriction
         m.update_milestone_radius(previous_target.id, 60)
     return None, target
 
-
+### Target success method ###
 def has_reached_target(target, z, est_pose, has_converged) -> bool: #TODO should we do so it get the map instead ?
     "method cheking if tagrget has been reached"
     id = target.id
@@ -132,11 +134,11 @@ def has_reached_target(target, z, est_pose, has_converged) -> bool: #TODO should
 
 ### planning methods ###
 
-def rrt_plan(pose, m, goal): #TODO
+def rrt_plan(pos, m, goal) -> list[list[float, float]]| None: #TODO
     """Plan in the world frame (m) from MIRTE's estimated position (from the measurements and motion updates of the
     particle filter) to GOAL around the boxes with mirte_rrt's RRT, then shorten it with simplify_path.
     Returns the simplified path goal first (as mirte_rrt gives it), or None."""
-    start = np.array([pose[0], pose[1]])
+    start = np.array([pos[0], pos[1]])
     goal = np.array(GOAL)
     # Same LocalMap as Ex4 (box radius 0.20 m + MIRTE radius 0.22 m), the boxes as landmarks in the world frame
     robot = robot_models.PointMassModel(ctrl_range=[-RRT_PATH_RES, RRT_PATH_RES])
@@ -148,7 +150,7 @@ def rrt_plan(pose, m, goal): #TODO
             return simplify_path(path, rrt)
     return None
 
-def create_local_map(local_landmarks, local_obstacles, dist): #TODO
+def create_local_map(local_landmarks, local_obstacles, dist) -> local_map.LocalMap: #TODO
     lm = local_map.LocalMap(low=(-100, 0.0),
     high=(100, min(dist+50,350)), landmark_radius=20,
             mirte_radius=22, obstacale_radius=20)
@@ -165,7 +167,14 @@ def create_local_map(local_landmarks, local_obstacles, dist): #TODO
     lm.obstacles = lobs
     return lm
 
-def should_replan(landmarks, obstales, new_landmarks, new_obstacles, map_area, curr_pose, target, global_plan) -> bool:
+def is_outisde_map(pos, radius, map_area) -> bool:
+    "function cheking if an obstacle or landmark is outside a map area"
+    #get difference between pos and closest point in the map
+    delta = pos - np.clip(pos, map_area[0], map_area[1])
+    return np.sum(delta**2) > radius**2
+
+
+def should_replan(landmarks, obstales, new_landmarks, new_obstacles, map, curr_pose, target, global_plan) -> bool:
     "method for cheking if replan is need from camera observations"
     x, y, theta = curr_pose
     for id in new_landmarks:
@@ -174,14 +183,16 @@ def should_replan(landmarks, obstales, new_landmarks, new_obstacles, map_area, c
                 print(f'target found: {id}')
                 return True
             #if we are locally planning when we can ignore all obstacales and landmarks outside the planning area
-            # TODO do so we this only work if the radius is outisde the box
+            
             if not global_plan:
                 delta_x, delta_y = new_landmarks[id]
                 pos = np.array([
                     x + delta_x * np.cos(theta) - delta_y * np.sin(theta),
                     y + delta_x * np.sin(theta) + delta_y * np.cos(theta)])
-                if np.any(pos < map_area[0]) or np.any(pos > map_area[1]):
-                        continue
+                if is_outisde_map(pos, 60 ,map.map_area): #TODO set this properly
+                    #landmark can safely be added as it is outise the map
+                    landmarks[id] = pos
+                    continue
             return True
     for id in new_obstacles:
             if id not in obstales:
@@ -190,13 +201,15 @@ def should_replan(landmarks, obstales, new_landmarks, new_obstacles, map_area, c
                     pos = np.array([
                         x + delta_x * np.cos(theta) - delta_y * np.sin(theta),
                         y + delta_x * np.sin(theta) + delta_y * np.cos(theta)])
-                    if np.any(pos < map_area[0]) or np.any(pos > map_area[1]):
-                            continue
+                    if is_outisde_map(pos, map.obstacale_radius, map.map_area):
+                        #obstacle can safely be added as it is outise the map
+                        obstales[id] = pos
+                        continue
                 return True
     return False
 
 ### Updating MCL ###
-def update_mcl(mcl, u, z, global_map, NUM_PARTICLES):
+def update_mcl(mcl, u, z, global_map, NUM_PARTICLES) -> None:
     "function for updating MCL"
     if z:
         mcl.mcl(u,z,global_map)
@@ -205,93 +218,6 @@ def update_mcl(mcl, u, z, global_map, NUM_PARTICLES):
             mcl.particles = np.array([mcl.sample_motion_model_with_map(u, x_last, global_map) for x_last in mcl.particles])
         for p in mcl.particles:
             p.setWeight(1.0/NUM_PARTICLES)
-
-###DRVING CONSTANTS
-#TODO refine constants on charged battery
-LINEAR_OFFSET = -0.0354
-LINEAR_SPEED = 0.3
-ANGULAR_SPEED = 0.7
-LEFT_TRUN_SCALER = 1.05 
-RIGHT_TRUN_SCALER = 1.1
-
-
-#### DRIVING METHODS ####
-def turn(theta, mirte) -> float:
-    "Turning method, returns turned amount"
-    if abs(theta) > 1e-3:
-        scaler = LEFT_TRUN_SCALER if theta > 0 else RIGHT_TRUN_SCALER
-        mirte.drive(
-            0.0,
-            np.sign(theta) * ANGULAR_SPEED,
-            scaler * abs(theta) / ANGULAR_SPEED
-            )
-        return theta
-    return 0.0
-
-def drive_foward(distance, mirte, in_meters = False) -> None: #TODO make use of obstacle avoidance
-    #convert from cm to meters
-    if not in_meters:
-        distance = distance/100
-    
-    mirte.drive(
-                LINEAR_SPEED,
-                LINEAR_OFFSET,
-                distance / LINEAR_SPEED
-            )
-
-    return distance*100
-
-def Execute_path(path, pose, mirte, mcl, local_landmarks, local_obstacles, map, global_map, target, target_run, global_plan = False):
-    "method for executing path"
-    current_pose = np.array(pose, dtype=float).copy()
-    u = [0.0, 0.0]
-    #TODO be aware i changed from path.revsere() to this, that could make trouble
-    for point in list(reversed(path))[1:]:
-        dx = point[0] - current_pose[0]
-        dy = point[1] - current_pose[1]
-
-        distance = np.linalg.norm(np.array([dx, dy]))/100
-
-        if distance <= 1e-6:
-            u = [0.0, 0.0]
-            continue
-
-        target_theta = np.arctan2(dy, dx)
-
-        dtheta = target_theta - current_pose[2]
-        dtheta = np.arctan2(np.sin(dtheta), np.cos(dtheta))
-
-
-        turned = turn(dtheta, mirte)
-        u = [0.0, turned]
-
-        #get_observations
-        new_z, new_local_landmarks, new_local_obstacles = cam.get_observations(landmarks, mirte)
-        
-        #replan check
-        replan = should_replan(local_landmarks, local_obstacles, new_local_landmarks, new_local_obstacles, map.map_area, current_pose, target, global_plan)
-
-        if replan:
-            print('new observation made, replanning in order')
-            update_mcl(mcl, u, new_z, global_map, NUM_PARTICLES)
-            return False
-            
-
-        #TODO add obstavle avoince during drive with sonar
-        dist_driven = drive_foward(distance, mirte, in_meters= True)
-
-        #update mcl
-        u = [dist_driven, turned]
-        update_mcl(mcl, u, new_z, global_map, NUM_PARTICLES)
-
-        # Update predicted pose without modifying the input pose.
-        current_pose[0] = point[0]
-        current_pose[1] = point[1]
-        current_pose[2] = np.mod(target_theta, 2.0 * np.pi)
-    #whether we did random exploration or if we are drivng towards the target
-    if target_run:
-        return True
-    return False
 
 
 u_pending = [0.0, 0.0]
@@ -314,7 +240,8 @@ while target_stack or target:
     #get observations
     z, local_landmarks, local_obstacles = cam.get_observations(landmarks, mirte)
 
-    #TODO add print information as to what we see
+    #print information as to what the mirte sees in local view
+    cam.print_observations(z, local_landmarks, local_obstacles)
 
     #update mcl
     update_mcl(aug_mcl, u, z, global_map, NUM_PARTICLES)
@@ -375,12 +302,20 @@ while target_stack or target:
                 break
             size += ...
 
-        reached_target = Execute_path(path, 
+        while path is None:
+            path = rrt_plan([0,0, 0.0], Local_MAP, goal)
+            #could mirte find a proper plan with current goal or should it be updated
+            if path is None:#TODO update goal
+                goal = ...
+
+
+        reached_target = drive.Execute_path(path, 
                                       [0.0, 0.0, np.radians(90)], #we are looking foward in local planning so add 90 degrees
                                       mirte, 
                                       aug_mcl, 
                                       local_landmarks, 
                                       local_obstacles, 
+                                      landmarks, 
                                       Local_MAP,
                                       target,
                                       global_map, 
@@ -402,12 +337,13 @@ while target_stack or target:
         #TODO init this properly. Is it always a run towards the target?
         target_run = True
 
-        reached_target = Execute_path(path, 
+        reached_target = drive.Execute_path(path, 
                                       [est_pose.getX(), est_pose.getY(), est_pose.getTheta()], 
                                       mirte, 
                                       aug_mcl, 
                                       local_landmarks, 
-                                      local_obstacles, 
+                                      local_obstacles,
+                                      landmarks, 
                                       global_map, 
                                       global_map,
                                       target, 
@@ -422,22 +358,22 @@ while target_stack or target:
                 raise ValueError('target has not been set to None')
         u_pending = [0.0, 0.0]
         continue
-    elif guess_conversion: #TODO
+    #elif guess_conversion: #TODO
         #we have now split the potential maps in half atleast, so do some action
-        pass
+        #pass
 
     elif not (HAS_TURNED_LEFT and HAS_TURNED_RIGHT):
         #left right step
         #turn 20 degrees to the left
         if not HAS_TURNED_LEFT:
             HAS_TURNED_LEFT = True
-            turn(SCAN_STEP, mirte)
+            drive.turn(SCAN_STEP, mirte)
             u_pending = [0.0, SCAN_STEP]
             continue
         #turn 40 degrees to the right
         if not HAS_TURNED_RIGHT:
             HAS_TURNED_RIGHT = True
-            turn(-2*SCAN_STEP, mirte)
+            drive.turn(-2*SCAN_STEP, mirte)
             u_pending = [0.0, -2*SCAN_STEP]
             continue
         raise ValueError('somthing went wrong in has turned left and has turned right')
@@ -445,7 +381,7 @@ while target_stack or target:
         #360
         turns += 1
         #turn 20 degrees to the right
-        turn(-SCAN_STEP, mirte)
+        drive.turn(-SCAN_STEP, mirte)
         u_pending = [0.0, -SCAN_STEP]
     else: #TODO #mirte could not gather anything from this position, do some random exploration in the close vacinity
         #TODO add random exploration
@@ -463,9 +399,6 @@ while target_stack or target:
     
 print(f"No targets left, shutdown inbound")
     
-
-
-
 #done
 del  mirte
 

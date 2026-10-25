@@ -71,7 +71,8 @@ obstacle_offset_3d_CM = np.array([
     -OBJECT_DEPTH_CM / 2.0
 ])
 
-def get_observation(landmarks, mirte):
+def get_observations(landmarks, mirte):
+    "Method for getting th mirtes local observations"
     z = {}
     local_landmarks = {}
     local_obstacles = {}
@@ -126,3 +127,15 @@ def get_observation(landmarks, mirte):
         #TODO check if this is correct
         z[id] = [np.linalg.norm(pos), np.atan2(-pos[0], pos[1])]
     return z, local_landmarks, local_obstacles
+
+def print_observations(z, local_landmarks, local_obstacles) -> None:
+    "method used for printing observations"
+    if z:
+        print("Landmarks seen:")
+    for id in z:
+        print(f"Landmark id = {id}, dist = {z[id][0]}, angle = {z[id][0]} local pos: x = {local_landmarks[id][0]}, y = {local_landmarks[id][1]}")
+
+    if local_obstacles:
+        print("Obstacles seen:")
+    for id in local_obstacles:
+        print(f"Obstacle id = {id} local pos: x = {local_obstacles[id][0]}, y = {local_obstacles[id][1]}")

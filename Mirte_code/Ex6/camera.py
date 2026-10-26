@@ -125,7 +125,7 @@ def get_observations(landmarks, mirte):
     for id in local_landmarks:
         pos = local_landmarks[id]
         #TODO check if this is correct
-        z[id] = [np.linalg.norm(pos), np.atan2(-pos[0], pos[1])]
+        z[id] = [np.linalg.norm(pos), np.arctan2(-pos[0], pos[1])]
     return z, local_landmarks, local_obstacles
 
 def print_observations(z, local_landmarks, local_obstacles) -> None:

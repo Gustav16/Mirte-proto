@@ -13,7 +13,7 @@ import planning
 
 from ku_mirte import KU_Mirte
 #init landmark
-landmarkIDs = [6,2,3,4]
+landmarkIDs = [6,3,1,4]
 
 
 #init landmarks

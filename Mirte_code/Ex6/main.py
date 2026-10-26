@@ -234,7 +234,7 @@ while target_stack or target:
         reset_turn_variables()
         if reached_target:
             print("target beleived to have been reached, via local pathplanning")
-            target, previous_target = target_update(target, previous_target)
+            target, previous_target = target_update(target, previous_target, global_map)
             if target:
                 raise ValueError('target has not been set to None')
         u_pending = [0.0, 0.0]
@@ -294,7 +294,7 @@ while target_stack or target:
         reset_turn_variables()
         if reached_target:
             print("target beleived to have been reached, via global pathplanning")
-            target, previous_target = target_update(target, previous_target)
+            target, previous_target = target_update(target, previous_target, global_map)
             if target:
                 raise ValueError('target has not been set to None')
         u_pending = [0.0, 0.0]

@@ -224,8 +224,8 @@ while target_stack or target:
                                       local_obstacles, 
                                       landmarks, 
                                       Local_MAP,
+                                      global_map,
                                       target,
-                                      global_map, 
                                       target_run, 
                                       False)
 

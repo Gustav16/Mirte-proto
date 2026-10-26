@@ -1,6 +1,8 @@
-import main
+
 import camera as cam
 import numpy as np
+from mcl import MCL
+from planning import should_replan
 
 
 ###DRVING CONSTANTS
@@ -72,11 +74,11 @@ def Execute_path(path, pose, mirte, mcl, local_landmarks, local_obstacles, landm
         cam.print_observations(new_z, new_local_landmarks, new_local_obstacles)
         
         #replan check
-        replan = main.should_replan(local_landmarks, local_obstacles, new_local_landmarks, new_local_obstacles, map, current_pose, target, global_plan)
+        replan = should_replan(local_landmarks, local_obstacles, new_local_landmarks, new_local_obstacles, map, current_pose, target, global_plan)
 
         if replan:
             print('new observation made, replanning in order')
-            main.update_mcl(mcl, u, new_z, global_map, len(mcl.particles))
+            MCL.update_mcl(mcl, u, new_z, global_map, len(mcl.particles))
             return False
             
 
@@ -91,7 +93,7 @@ def Execute_path(path, pose, mirte, mcl, local_landmarks, local_obstacles, landm
 
         #update mcl
         u = [dist_driven, turned]
-        main.update_mcl(mcl, u, new_z, global_map, len(mcl.particles))
+        MCL.update_mcl(mcl, u, new_z, global_map, len(mcl.particles))
         
         #replan check
         replan = main.should_replan(local_landmarks, local_obstacles, new_local_landmarks, new_local_obstacles, map, current_pose, target, global_plan)

@@ -8,6 +8,7 @@ import robot_models
 import numpy as np
 import time
 import drive
+import planning
 
 
 from ku_mirte import KU_Mirte
@@ -139,99 +140,7 @@ def has_reached_target(target, z, est_pose, has_converged) -> bool: #TODO should
     #TODO check if there are other success conditions
     return False
 
-### planning methods ###
 
-def rrt_plan(pos, m, goal, local_plan) -> list[list[float, float]]| None: #TODO
-    """Plan in the world frame (m) from MIRTE's estimated position (from the measurements and motion updates of the
-    particle filter) to GOAL around the boxes with mirte_rrt's RRT, then shorten it with simplify_path.
-    Returns the simplified path goal first (as mirte_rrt gives it), or None."""
-    start = np.array([pos[0], pos[1]])
-    goal = np.array(goal)
-    # Same LocalMap as Ex4 (box radius 0.20 m + MIRTE radius 0.22 m), the boxes as landmarks in the world frame
-    robot = robot_models.PointMassModel(ctrl_range=[-RRT_PATH_RES, RRT_PATH_RES])
-    size_array = [1, 1.25, 1,5, 1.75, 2]
-    area = m.map_area.copy()
-    for i in range(RRT_TRIES): # RRT is random, try again if it does not find a path
-        if local_plan:
-            m.map_area = area * size_array[i]
-        rrt = RRT(start=start, goal=goal, robot_model=robot, map=m,
-                expand_dis=RRT_EXPAND_DIS, path_resolution=RRT_PATH_RES)
-        path = rrt.planning(animation=False)
-        if path is not None:
-            return simplify_path(path, rrt)
-    #path could not be found so reseting map area if local plan
-    if local_plan:
-        m.map_area = area
-    return None
-
-def create_local_map(local_landmarks, local_obstacles, dist) -> local_map.LocalMap: #TODO
-    lm = local_map.LocalMap(low=(-100, 0.0),
-    high=(100, dist+50), landmark_radius=20,
-            mirte_radius=22, obstacale_radius=20)
-    lmarks  =  []
-    lobs = []
-    for id in local_landmarks:
-        pos = local_landmarks[id]
-        radius = 20.0 if id in ([previous_target.id, target.id] if previous_target else [target.id]) else 40.0 + 20.0
-        lmarks.append([pos, radius, id])
-    for id in local_obstacles:
-        pos = local_obstacles[id]
-        lobs.append([pos, id])
-    lm.landmarks = lmarks
-    lm.obstacles = lobs
-    return lm
-
-def is_outisde_map(pos, radius, map_area) -> bool:
-    "function cheking if an obstacle or landmark is outside a map area"
-    #get difference between pos and closest point in the map
-    delta = pos - np.clip(pos, map_area[0], map_area[1])
-    return np.sum(delta**2) > radius**2
-
-
-def should_replan(landmarks, obstales, new_landmarks, new_obstacles, map, curr_pose, target, global_plan) -> bool:
-    "method for cheking if replan is need from camera observations"
-    x, y, theta = curr_pose
-    for id in new_landmarks:
-        if id not in landmarks:
-            if id == target.id:
-                print(f'target found: {id}')
-                return True
-            #if we are locally planning when we can ignore all obstacales and landmarks outside the planning area
-            
-            if not global_plan:
-                delta_x, delta_y = new_landmarks[id]
-                pos = np.array([
-                    x + delta_x * np.cos(theta) - delta_y * np.sin(theta),
-                    y + delta_x * np.sin(theta) + delta_y * np.cos(theta)])
-                if is_outisde_map(pos, 60 ,map.map_area): #TODO set this properly
-                    #landmark can safely be added as it is outise the map
-                    landmarks[id] = pos
-                    continue
-            return True
-    for id in new_obstacles:
-            if id not in obstales:
-                if not global_plan:
-                    delta_x, delta_y = new_obstacles[id]
-                    pos = np.array([
-                        x + delta_x * np.cos(theta) - delta_y * np.sin(theta),
-                        y + delta_x * np.sin(theta) + delta_y * np.cos(theta)])
-                    if is_outisde_map(pos, map.obstacale_radius, map.map_area):
-                        #obstacle can safely be added as it is outise the map
-                        obstales[id] = pos
-                        continue
-                return True
-    return False
-
-### Updating MCL ###
-def update_mcl(mcl, u, z, global_map, NUM_PARTICLES) -> None:
-    "function for updating MCL"
-    if z:
-        mcl.mcl(u,z,global_map)
-    else: #TODO look at this
-        if u[0] != 0.0 or u[1] != 0.0: # without a move or a measurement nothing changed (and the motion model adds noise for u = 0)
-            mcl.particles = np.array([mcl.sample_motion_model_with_map(u, x_last, global_map) for x_last in mcl.particles])
-        for p in mcl.particles:
-            p.setWeight(1.0/NUM_PARTICLES)
 
 
 u_pending = [0.0, 0.0]
@@ -258,7 +167,7 @@ while target_stack or target:
     cam.print_observations(z, local_landmarks, local_obstacles)
 
     #update mcl
-    update_mcl(aug_mcl, u, z, global_map, NUM_PARTICLES)
+    MCL.update_mcl(aug_mcl, u, z, global_map, NUM_PARTICLES)
     
     est_pose = aug_mcl.estimate_pose() # The estimate of the robots current pose
 
@@ -287,7 +196,7 @@ while target_stack or target:
     if target.id in local_landmarks: #if the mirte sees the target then create and excute a path plan
         #TODO create rrt path as close to target as possible
         dist = z[target.id][0]
-        Local_MAP = create_local_map(local_landmarks, local_obstacles, dist)
+        Local_MAP = planning.create_local_map(local_landmarks, local_obstacles, dist, previous_target, target)
 
         len  = (dist - 50)/dist
         goal = (local_landmarks[target.id][0]*len,local_landmarks[target.id][1]*len)
@@ -298,7 +207,7 @@ while target_stack or target:
         path = None
 
         while path is None:
-            path = rrt_plan([0,0, 0.0], Local_MAP, goal, True)
+            path = planning.rrt_plan([0,0, 0.0], Local_MAP, goal, True)
             #could mirte find a proper plan with current goal or should it be updated
             if path is None:#TODO update goal
                 #update goal with some random setting in vacinity
@@ -333,7 +242,7 @@ while target_stack or target:
         #TODO do presteps
 
         #dist = z[target.id][0]
-        #Local_MAP = create_local_map(local_landmarks, local_obstacles, dist)
+        #Local_MAP = planning.create_local_map(local_landmarks, local_obstacles, dist)
 
         #update obstacles #TODO not sure
         #update the local obstacles to gloabal obstacles
@@ -359,7 +268,7 @@ while target_stack or target:
         target_run = True
 
         while path is None:
-            path = rrt_plan([est_pose.getX(), est_pose.getY()], temp_global_map, goal, False)
+            path = planning.rrt_plan([est_pose.getX(), est_pose.getY()], temp_global_map, goal, False)
             #could mirte find a proper plan with current goal or should it be updated
             if path is None:#TODO update goal
                 #update goal with some random setting in vacinity

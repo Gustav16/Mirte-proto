@@ -192,7 +192,7 @@ class MCL:
         """random pose that fits the measurement of one seen landmark (sensor resetting): at the measured distance
         in a random direction around it, turned so the landmark is at the measured bearing.
         One landmark only puts the robot on a circle around it, which uniform random particles almost never hit."""
-        landmark_pos = {id: pos for pos, id in m.landmarks}
+        landmark_pos = {id: pos for pos, radius, id in m.landmarks}
         seen = [id for id in z if id in landmark_pos]
         for _ in range(20):
             if not seen:

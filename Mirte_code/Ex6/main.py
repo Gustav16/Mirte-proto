@@ -159,7 +159,7 @@ def rrt_plan(pos, m, goal, local_plan) -> list[list[float, float]]| None: #TODO
 
 def create_local_map(local_landmarks, local_obstacles, dist) -> local_map.LocalMap: #TODO
     lm = local_map.LocalMap(low=(-100, 0.0),
-    high=(100, min(dist+50,350)), landmark_radius=20,
+    high=(100, dist+50), landmark_radius=20,
             mirte_radius=22, obstacale_radius=20)
     lmarks  =  []
     lobs = []
@@ -282,32 +282,13 @@ while target_stack or target:
         dist = z[target.id][0]
         Local_MAP = create_local_map(local_landmarks, local_obstacles, dist)
 
-        #TODO fix goal calculation
-        #TODO handle angles
-        goal = (local_landmarks[target.id][0],local_landmarks[target.id][1]) # TODO remove 50(20 + 30) cm from dist
+        len  = (z[target.id][0] - 50)/z[target.id][0]
+        goal = (local_landmarks[target.id][0]*len,local_landmarks[target.id][1]*len) # TODO remove 50(20 + 30) cm from dist
 
         #TODO init this
-        target_run = ...
+        target_run = True
 
-        robot = robot_models.PointMassModel(ctrl_range=[-RRT_PATH_RES, RRT_PATH_RES])
-
-
-        #TODO wrap this in a method
-        rrt = RRT(start=[0.0], goal=goal, robot_model=robot, map=Local_MAP,
-                            expand_dis=RRT_EXPAND_DIS, path_resolution=RRT_PATH_RES)
         path = None
-
-        size = ... 
-        for _ in range(RRT_TRIES): # RRT is random, try again if it does not find a path
-            #TODO if size of rrt isnt big enough increase size of local map
-            #TODO we want the robot to use as little space as possible in a rectangle, but increase if no path is found
-            rrt = RRT(start=[0.0], goal=goal, robot_model=robot, map=Local_MAP,
-                                        expand_dis=RRT_EXPAND_DIS, path_resolution=RRT_PATH_RES)
-            path = rrt.planning(animation=False)
-            if path is not None:
-                path = simplify_path(path, rrt)
-                break
-            size += ...
 
         while path is None:
             path = rrt_plan([0,0, 0.0], Local_MAP, goal, True)

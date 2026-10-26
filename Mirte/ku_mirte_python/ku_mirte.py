@@ -37,7 +37,7 @@ class KU_Mirte:
         print("Initiating components")
         rclpy.init()
         self.robot_pos_sub = PositionSubscriber()
-        # self.camera_sub = CameraSubscriber()
+        self.camera_sub = CameraSubscriber()
         self.camera_compressed_sub = CameraCompressedSubscriber()
         self.lidar_sub = LidarSubscriber()
         self.sonar_sub = SonarSubscriber()

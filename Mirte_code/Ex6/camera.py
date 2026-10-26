@@ -123,7 +123,7 @@ def get_observations(landmarks, mirte):
         else:
             local_obstacles[id] = pos
     for id in local_landmarks:
-        pos = local_landmarks[i]
+        pos = local_landmarks[id]
         #TODO check if this is correct
         z[id] = [np.linalg.norm(pos), np.atan2(-pos[0], pos[1])]
     return z, local_landmarks, local_obstacles

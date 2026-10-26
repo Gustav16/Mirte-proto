@@ -1,3 +1,9 @@
+from pathlib import Path
+import sys
+
+EX6_DIR = Path(__file__).resolve().parent.parent
+sys.path.insert(0, str(EX6_DIR))
+
 import camera
 from ku_mirte import KU_Mirte
 

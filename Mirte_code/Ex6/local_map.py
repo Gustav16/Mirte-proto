@@ -18,6 +18,7 @@ import cv2
 import numpy as np
 import matplotlib.pyplot as plt
 from matplotlib.patches import Circle
+import copy
 
 sys.path.append(
     os.path.join(
@@ -173,7 +174,7 @@ class LocalMap:
             obstacle = np.asarray(obstacle, dtype=float)
         
             #use squrared distance as it is faster
-            if np.sum((pos - landmark)**2) <= clearance:
+            if np.sum((pos - obstacle)**2) <= clearance:
                 return 1
 
         return 0
@@ -253,3 +254,6 @@ class LocalMap:
         ax.set_aspect("equal", adjustable="box")
 
         ax.grid(True)
+
+    def Copy(self):
+        return copy.deepcopy(self)

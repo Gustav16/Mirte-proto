@@ -83,6 +83,9 @@ def Execute_path(path, pose, mirte, mcl, local_landmarks, local_obstacles, landm
         #TODO add obstavle avoince during drive with sonar
         dist_driven = drive_foward(distance, mirte, in_meters= True)
 
+        #get_observations
+        new_z, new_local_landmarks, new_local_obstacles = cam.get_observations(landmarks, mirte)
+        
         #print observations
         cam.print_observations(new_z, new_local_landmarks, new_local_obstacles)
 

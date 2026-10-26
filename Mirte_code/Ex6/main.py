@@ -325,20 +325,40 @@ while target_stack or target:
         #then do planning
         #TODO do presteps
 
-        #update the local obstacles to gloabal obstacles
+        #dist = z[target.id][0]
+        #Local_MAP = create_local_map(local_landmarks, local_obstacles, dist)
 
-        #TODO init this properly. Is it always a run towards the target?
+        #update obstacles #TODO not sure
+        #update the local obstacles to gloabal obstacles
+        temp_global_map = global_map.Copy()
+
+        temp_global_map.obstacles = [( np.array([
+            est_pose.getX() + x * np.cos(est_pose.getTheta()) - y * np.sin(est_pose.getTheta()),
+            est_pose.getY() + x * np.sin(est_pose.getTheta()) + y * np.cos(est_pose.getTheta())
+            ]),
+            id
+        )
+        for id, (x, y) in local_obstacles.items()
+]
+        target_pos = list(landmarks[target.id])
+
+        delta = target_pos - np.array([est_pose.getX(), est_pose.getY()])
+
+        dist = np.linalg.norm(delta)
+        length = (dist - 50) / dist
+
+        goal = np.array([est_pose.getX(), est_pose.getY()]) + delta * length
+
         target_run = True
 
-
         while path is None:
-            path = rrt_plan([0,0, 0.0], Local_MAP, goal, True)
+            path = rrt_plan([est_pose.getX(), est_pose.getY()], temp_global_map, goal, False)
             #could mirte find a proper plan with current goal or should it be updated
             if path is None:#TODO update goal
                 #update goal with some random setting in vacinity
                 print('could not find path, so trying with goal in nearby vacinity')
                 target_run = False
-                goal = ...
+                goal = goal
 
         reached_target = drive.Execute_path(path, 
                                       [est_pose.getX(), est_pose.getY(), est_pose.getTheta()], 
@@ -347,13 +367,12 @@ while target_stack or target:
                                       local_landmarks, 
                                       local_obstacles,
                                       landmarks, 
-                                      global_map, 
+                                      temp_global_map, 
                                       global_map,
                                       target, 
                                       True, 
                                       True)
         #reset global obstacles
-        global_map.obstacles = []
         reset_turn_variables()
         if reached_target:
             print("target beleived to have been reached, via global pathplanning")

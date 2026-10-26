@@ -134,20 +134,27 @@ def has_reached_target(target, z, est_pose, has_converged) -> bool: #TODO should
 
 ### planning methods ###
 
-def rrt_plan(pos, m, goal) -> list[list[float, float]]| None: #TODO
+def rrt_plan(pos, m, goal, local_plan) -> list[list[float, float]]| None: #TODO
     """Plan in the world frame (m) from MIRTE's estimated position (from the measurements and motion updates of the
     particle filter) to GOAL around the boxes with mirte_rrt's RRT, then shorten it with simplify_path.
     Returns the simplified path goal first (as mirte_rrt gives it), or None."""
     start = np.array([pos[0], pos[1]])
-    goal = np.array(GOAL)
+    goal = np.array(goal)
     # Same LocalMap as Ex4 (box radius 0.20 m + MIRTE radius 0.22 m), the boxes as landmarks in the world frame
     robot = robot_models.PointMassModel(ctrl_range=[-RRT_PATH_RES, RRT_PATH_RES])
-    for _ in range(RRT_TRIES): # RRT is random, try again if it does not find a path
+    size_array = [1, 1.25, 1,5, 1.75, 2]
+    area = m.map_area.copy()
+    for i in range(RRT_TRIES): # RRT is random, try again if it does not find a path
+        if local_plan:
+            m.map_area = area * size_array[i]
         rrt = RRT(start=start, goal=goal, robot_model=robot, map=m,
                 expand_dis=RRT_EXPAND_DIS, path_resolution=RRT_PATH_RES)
         path = rrt.planning(animation=False)
         if path is not None:
             return simplify_path(path, rrt)
+    #path could not be found so reseting map area if local plan
+    if local_plan:
+        m.map_area = area
     return None
 
 def create_local_map(local_landmarks, local_obstacles, dist) -> local_map.LocalMap: #TODO
@@ -303,7 +310,7 @@ while target_stack or target:
             size += ...
 
         while path is None:
-            path = rrt_plan([0,0, 0.0], Local_MAP, goal)
+            path = rrt_plan([0,0, 0.0], Local_MAP, goal, True)
             #could mirte find a proper plan with current goal or should it be updated
             if path is None:#TODO update goal
                 #update goal with some random setting in vacinity
@@ -337,8 +344,20 @@ while target_stack or target:
         #then do planning
         #TODO do presteps
 
+        #update the local obstacles to gloabal obstacles
+
         #TODO init this properly. Is it always a run towards the target?
         target_run = True
+
+
+        while path is None:
+            path = rrt_plan([0,0, 0.0], Local_MAP, goal, True)
+            #could mirte find a proper plan with current goal or should it be updated
+            if path is None:#TODO update goal
+                #update goal with some random setting in vacinity
+                print('could not find path, so trying with goal in nearby vacinity')
+                target_run = False
+                goal = ...
 
         reached_target = drive.Execute_path(path, 
                                       [est_pose.getX(), est_pose.getY(), est_pose.getTheta()], 
@@ -352,7 +371,8 @@ while target_stack or target:
                                       target, 
                                       True, 
                                       True)
-        
+        #reset global obstacles
+        global_map.obstacles = []
         reset_turn_variables()
         if reached_target:
             print("target beleived to have been reached, via global pathplanning")

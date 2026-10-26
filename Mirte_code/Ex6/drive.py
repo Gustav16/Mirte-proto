@@ -58,7 +58,11 @@ def Execute_path(path, pose, mirte, mcl, local_landmarks, local_obstacles, landm
         dtheta = np.arctan2(np.sin(dtheta), np.cos(dtheta))
 
 
+        #turn
         turned = turn(dtheta, mirte)
+
+        #update current pose
+        current_pose[2] = np.mod(target_theta, 2.0 * np.pi)
         u = [0.0, turned]
 
         #get_observations
@@ -79,14 +83,23 @@ def Execute_path(path, pose, mirte, mcl, local_landmarks, local_obstacles, landm
         #TODO add obstavle avoince during drive with sonar
         dist_driven = drive_foward(distance, mirte, in_meters= True)
 
+        #print observations
+        cam.print_observations(new_z, new_local_landmarks, new_local_obstacles)
+
         #update mcl
         u = [dist_driven, turned]
         main.update_mcl(mcl, u, new_z, global_map, len(mcl.particles))
+        
+        #replan check
+        replan = main.should_replan(local_landmarks, local_obstacles, new_local_landmarks, new_local_obstacles, map, current_pose, target, global_plan)
+
+        if replan:
+            print('new observation made, replanning in order')
+            return False
 
         # Update predicted pose without modifying the input pose.
         current_pose[0] = point[0]
         current_pose[1] = point[1]
-        current_pose[2] = np.mod(target_theta, 2.0 * np.pi)
     #whether we did random exploration or if we are drivng towards the target
     if target_run:
         return True

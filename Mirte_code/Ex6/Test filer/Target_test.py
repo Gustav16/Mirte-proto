@@ -17,7 +17,7 @@ landmarks = {
 mirte = KU_Mirte()
 z, local_landmarks, local_obstacles = camera.get_observations(landmarks, mirte)
 
-target_id = 3  # Skift til ID'et på markøren, I tester
+target_id = 6  # Skift til ID'et på markøren, I tester
 
 print("Landmarks fundet:", local_landmarks.keys())
 print("Observationer:", z)

@@ -282,8 +282,8 @@ while target_stack or target:
         dist = z[target.id][0]
         Local_MAP = create_local_map(local_landmarks, local_obstacles, dist)
 
-        len  = (z[target.id][0] - 50)/z[target.id][0]
-        goal = (local_landmarks[target.id][0]*len,local_landmarks[target.id][1]*len) # TODO remove 50(20 + 30) cm from dist
+        len  = (dist - 50)/dist
+        goal = (local_landmarks[target.id][0]*len,local_landmarks[target.id][1]*len)
 
         #TODO init this
         target_run = True
@@ -297,7 +297,7 @@ while target_stack or target:
                 #update goal with some random setting in vacinity
                 print('could not find path, so trying with goal in nearby vacinity')
                 target_run = False
-                goal = ...
+                goal = goal
 
 
         reached_target = drive.Execute_path(path, 

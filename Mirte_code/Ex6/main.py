@@ -127,8 +127,15 @@ def has_reached_target(target, z, est_pose, has_converged) -> bool: #TODO should
         return True
     #if we cant see but have converged poition, are we in the success range
     #TODO maybe check est_pose isnt inside the target
-    if has_converged and np.linalg.norm([est_pose.getX(), est_pose.getY()], [landmarks[id][0], landmarks[id][1]]) <= SUCCESS__RANGE:
+
+    robot_pos = np.array([est_pose.getX(), est_pose.getY()])
+    target_pos = np.array(landmarks[id])
+
+    distance_to_target = np.linalg.norm(robot_pos - target_pos)
+
+    if has_converged and distance_to_target <= SUCCESS__RANGE:
         return True
+        
     #TODO check if there are other success conditions
     return False
 
@@ -264,7 +271,7 @@ while target_stack or target:
     #guess_conversion =  guess_conversion_func(last_usefull_landmarkid, control_actions, local_landmarks, local_obstacles)
 
     #have the mirte reached the target?
-    reached_target = has_reached_target(target, z, est_pose)
+    reached_target = has_reached_target(target, z, est_pose, has_converged)
 
     if reached_target:
         #TODO add print information as to we beilve we reached target

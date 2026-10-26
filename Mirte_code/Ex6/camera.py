@@ -78,7 +78,7 @@ def get_observations(landmarks, mirte):
     local_obstacles = {}
 
 
-    img = mirte.get_image_compressed()
+    img = mirte.get_image()
     
     if img is None:
         raise ValueError('could not retrive image')

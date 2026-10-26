@@ -92,7 +92,7 @@ HAS_TURNED_RIGHT = False
 turns = 0
 
 #max turn constant
-SCAN_STEP = np.radians(20)
+SCAN_STEP = np.radians(40)
 MAX_TURNS = (np.radians(360)//SCAN_STEP) - 2
 
 ### Method for reseting turning varibles ###

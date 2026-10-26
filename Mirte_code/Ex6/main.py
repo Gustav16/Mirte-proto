@@ -1,6 +1,7 @@
 #import packages
 import local_map
 from mcl import MCL
+import mcl; print(mcl.__file__)
 import particle as pcl
 import camera as cam
 from rrt import RRT, simplify_path
@@ -9,6 +10,7 @@ import numpy as np
 import time
 import drive
 import planning
+
 
 
 from ku_mirte import KU_Mirte

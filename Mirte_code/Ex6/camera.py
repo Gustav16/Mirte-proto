@@ -61,20 +61,14 @@ CAMERA_OFFSET_FROM_ROBOT_CENTER = np.array([
 # estimatePoseSingleMarkers() returns tvec in the same unit as the marker
 # length. Since ARUCO_MARKER_LENGTH_MM = 145, tvec is in millimetres.
 # The box-depth offset must therefore ALSO be in millimetres here.
-
 OBJECT_DEPTH_M = 0.25
-OBJECT_DEPTH_CM = OBJECT_DEPTH_M * 100.0 
-OBJECT_DEPTH_MM = OBJECT_DEPTH_M * 1000.0
-#### 0.25 m = 25 cm = 250 mm
-#### tilføjede linje: OBJECT_DEPTH_MM = OBJECT_DEPTH_M * 1000.0
+OBJECT_DEPTH_CM = OBJECT_DEPTH_M * 100.0
 
 # Shift from the ArUco paper plane toward the approximate box center.
-
-#### skifter til mm da tvec kommer ind i mm
-obstacle_offset_3d_MM = np.array([
+obstacle_offset_3d_CM = np.array([
     0.0,
     0.0,
-    -OBJECT_DEPTH_MM / 2.0
+    -OBJECT_DEPTH_CM / 2.0
 ])
 
 def get_observations(landmarks, mirte):
@@ -111,13 +105,12 @@ def get_observations(landmarks, mirte):
         R, _ = cv2.Rodrigues(rvecs[i][0])
 
         # Estimate approximate center of the physical box.
-        center_camera_mm = (tvecs[i][0] + R @ obstacle_offset_3d_MM)
+        center_camera_mm = (tvecs[i][0] + R @ obstacle_offset_3d_CM)
 
         x_mm, y_mm, z_mm = center_camera_mm
 
         # Camera-frame 2D floor position in metres.
         pos = np.array([x_mm / 10.0,z_mm / 10.0])
-        #### ændret til pos = np.array([x_mm / 10.0,z_mm / 10.0]) fra pos = np.array([x_mm / 1000.0,z_mm / 1000.0]) da det er i cm og ikke m, da vi bruger cm i vores lokal map.
 
         # Camera -> robot-center transform.
         # Camera is CAMERA_FORWARD_OFFSET in front of robot center,
@@ -130,7 +123,7 @@ def get_observations(landmarks, mirte):
         else:
             local_obstacles[id] = pos
     for id in local_landmarks:
-        pos = local_landmarks[id] #### skrevet id istedet for i. tænker den skal bruge id istedet for i, da i er indekset i listen, og id er selve landmark id'et.
+        pos = local_landmarks[i]
         #TODO check if this is correct
         z[id] = [np.linalg.norm(pos), np.atan2(-pos[0], pos[1])]
     return z, local_landmarks, local_obstacles
@@ -140,8 +133,7 @@ def print_observations(z, local_landmarks, local_obstacles) -> None:
     if z:
         print("Landmarks seen:")
     for id in z:
-        print(f"Landmark id = {id}, dist = {z[id][0]}, angle = {z[id][1]} local pos: x = {local_landmarks[id][0]}, y = {local_landmarks[id][1]}")
-        #### ændrede angle = {z[id][0]} til angle = {z[id][1]}. fordi z[id][0] er distancen og z[id][1] er vinklen.
+        print(f"Landmark id = {id}, dist = {z[id][0]}, angle = {z[id][0]} local pos: x = {local_landmarks[id][0]}, y = {local_landmarks[id][1]}")
     if local_obstacles:
         print("Obstacles seen:")
     for id in local_obstacles:

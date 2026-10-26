@@ -65,7 +65,7 @@ class MCL:
         #the camera measures from its own position, camera_offset in front of the robot centre
         particle_x =  x_t.getX() + self.camera_offset*np.cos(particle_theta)
         particle_y =  x_t.getY() + self.camera_offset*np.sin(particle_theta)
-        for pos, id in m.landmarks:
+        for pos, radius, id in m.landmarks:
             landmark_x,landmark_y = pos
             delta = np.array([
             landmark_x - particle_x,
@@ -222,7 +222,7 @@ class MCL:
         
         #weights are a product over the seen landmarks, so their size jumps when the number of seen landmarks changes.
         #compare the average per seen landmark instead, so w_fast/w_slow only reacts to how well the particles fit
-        n_seen = max(1, sum(1 for pos, id in m.landmarks if id in z))
+        n_seen = max(1, sum(1 for pos, radius, id in m.landmarks if id in z))
         w_avg = np.mean(weights) ** (1.0 / n_seen)
         if self.W_fast is None: #init as average of weights
             self.W_fast = self.W_slow = w_avg

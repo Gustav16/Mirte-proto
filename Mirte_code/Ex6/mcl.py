@@ -288,7 +288,7 @@ class MCL:
 
     def has_converged(est_pose, mcl, x_var_err, y_var_err, theta_var_err) -> bool:
         "method for checking convergence"
-        x_var, y_var, theta_var = mcl.pose_variance(est_pose, mcl.particles)
+        x_var, y_var, theta_var = MCL.pose_variance(est_pose, mcl.particles)
 
         return (x_var < x_var_err
             and y_var < y_var_err

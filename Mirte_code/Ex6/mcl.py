@@ -294,3 +294,14 @@ class MCL:
             and y_var < y_var_err
             and theta_var < theta_var_err
         )
+    
+    ### Updating MCL ###
+    def update_mcl(mcl, u, z, global_map, NUM_PARTICLES) -> None:
+        "function for updating MCL"
+        if z:
+            mcl.mcl(u,z,global_map)
+        else: #TODO look at this
+            if u[0] != 0.0 or u[1] != 0.0: # without a move or a measurement nothing changed (and the motion model adds noise for u = 0)
+                mcl.particles = np.array([mcl.sample_motion_model_with_map(u, x_last, global_map) for x_last in mcl.particles])
+            for p in mcl.particles:
+                p.setWeight(1.0/NUM_PARTICLES)

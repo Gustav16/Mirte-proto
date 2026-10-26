@@ -11,7 +11,7 @@ landmarks = {
     1: (0.0, 0.0),
     2: (0.0, 300.0),
     3: (400.0, 0.0),
-    4: (300.0, 400.0),
+    6: (300.0, 400.0),
 }
 
 mirte = KU_Mirte()
@@ -22,7 +22,7 @@ target_id = 6  # Skift til ID'et på markøren, I tester
 print("Landmarks fundet:", local_landmarks.keys())
 print("Observationer:", z)
 
-if target_id in local_obstacles:
+if target_id in local_landmarks:
     print(f"Target {target_id} er fundet")
 else:
     print(f"Target {target_id} er ikke fundet")

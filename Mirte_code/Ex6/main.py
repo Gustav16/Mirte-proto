@@ -1,6 +1,7 @@
 #import packages
 import local_map
 from mcl import MCL
+import mcl; print(mcl.__file__)
 import particle as pcl
 import camera as cam
 from rrt import RRT, simplify_path
@@ -9,6 +10,7 @@ import numpy as np
 import time
 import drive
 import planning
+
 
 
 from ku_mirte import KU_Mirte
@@ -224,15 +226,15 @@ while target_stack or target:
                                       local_obstacles, 
                                       landmarks, 
                                       Local_MAP,
+                                      global_map,
                                       target,
-                                      global_map, 
                                       target_run, 
                                       False)
 
         reset_turn_variables()
         if reached_target:
             print("target beleived to have been reached, via local pathplanning")
-            target, previous_target = target_update(target, previous_target)
+            target, previous_target = target_update(target, previous_target, global_map)
             if target:
                 raise ValueError('target has not been set to None')
         u_pending = [0.0, 0.0]
@@ -292,7 +294,7 @@ while target_stack or target:
         reset_turn_variables()
         if reached_target:
             print("target beleived to have been reached, via global pathplanning")
-            target, previous_target = target_update(target, previous_target)
+            target, previous_target = target_update(target, previous_target, global_map)
             if target:
                 raise ValueError('target has not been set to None')
         u_pending = [0.0, 0.0]

@@ -65,7 +65,7 @@ class MCL:
         #the camera measures from its own position, camera_offset in front of the robot centre
         particle_x =  x_t.getX() + self.camera_offset*np.cos(particle_theta)
         particle_y =  x_t.getY() + self.camera_offset*np.sin(particle_theta)
-        for pos, id in m.landmarks:
+        for pos, radius, id in m.landmarks:
             landmark_x,landmark_y = pos
             delta = np.array([
             landmark_x - particle_x,
@@ -192,7 +192,7 @@ class MCL:
         """random pose that fits the measurement of one seen landmark (sensor resetting): at the measured distance
         in a random direction around it, turned so the landmark is at the measured bearing.
         One landmark only puts the robot on a circle around it, which uniform random particles almost never hit."""
-        landmark_pos = {id: pos for pos, id in m.landmarks}
+        landmark_pos = {id: pos for pos, radius, id in m.landmarks}
         seen = [id for id in z if id in landmark_pos]
         for _ in range(20):
             if not seen:
@@ -222,7 +222,7 @@ class MCL:
         
         #weights are a product over the seen landmarks, so their size jumps when the number of seen landmarks changes.
         #compare the average per seen landmark instead, so w_fast/w_slow only reacts to how well the particles fit
-        n_seen = max(1, sum(1 for pos, id in m.landmarks if id in z))
+        n_seen = max(1, sum(1 for pos, radius, id in m.landmarks if id in z))
         w_avg = np.mean(weights) ** (1.0 / n_seen)
         if self.W_fast is None: #init as average of weights
             self.W_fast = self.W_slow = w_avg
@@ -288,7 +288,7 @@ class MCL:
 
     def has_converged(est_pose, mcl, x_var_err, y_var_err, theta_var_err) -> bool:
         "method for checking convergence"
-        x_var, y_var, theta_var = mcl.pose_variance(est_pose, mcl.particles)
+        x_var, y_var, theta_var = MCL.pose_variance(est_pose, mcl.particles)
 
         return (x_var < x_var_err
             and y_var < y_var_err

@@ -263,7 +263,7 @@ while target_stack or target:
     est_pose = aug_mcl.estimate_pose() # The estimate of the robots current pose
 
     #have we reached convergence of paricle pose
-    has_converged = aug_mcl.has_converged(est_pose, aug_mcl, X_VAR_ERR, Y_VAR_ERR, THETA_VAR_ERR)
+    has_converged = MCL.has_converged(est_pose, aug_mcl, X_VAR_ERR, Y_VAR_ERR, THETA_VAR_ERR)
 
     #print information regarding estimated pose and convergence
     print(f"estimated pose: X = {est_pose.getX()}, Y = {est_pose.getY()}, Theta = {est_pose.getTheta()}\nConvergence: {has_converged}")

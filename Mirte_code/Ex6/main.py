@@ -12,7 +12,7 @@ import drive
 
 from ku_mirte import KU_Mirte
 #init landmark
-landmarkIDs = [1,2,3,4]
+landmarkIDs = [6,2,3,4]
 
 
 #init landmarks

@@ -22,7 +22,7 @@ target_id = 6  # Skift til ID'et på markøren, I tester
 print("Landmarks fundet:", local_landmarks.keys())
 print("Observationer:", z)
 
-if target_id in local_landmarks:
+if target_id in local_obstacles:
     print(f"Target {target_id} er fundet")
 else:
     print(f"Target {target_id} er ikke fundet")

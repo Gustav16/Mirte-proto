@@ -306,6 +306,9 @@ while target_stack or target:
             path = rrt_plan([0,0, 0.0], Local_MAP, goal)
             #could mirte find a proper plan with current goal or should it be updated
             if path is None:#TODO update goal
+                #update goal with some random setting in vacinity
+                print('could not find path, so trying with goal in nearby vacinity')
+                target_run = False
                 goal = ...
 
 

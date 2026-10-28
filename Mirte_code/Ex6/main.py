@@ -204,9 +204,10 @@ while target_stack or target:
         dist = z[target.id][0]
         print(f"Target: {target.id} seen at distance {dist}. Creating local path")
 
-        dist =(min(200, dist))
-        Local_MAP = planning.create_local_map(local_landmarks, local_obstacles, dist, previous_target, target)
-        len  = min(abs(dist - 60), abs(dist - 20))/z[target.id][0]
+        max_dist = min(dist, 201)
+        Local_MAP = planning.create_local_map(local_landmarks, local_obstacles, max_dist, previous_target, target)
+        goal_len = min(abs(max_dist - 60), abs(max_dist -30) ) if dist <= 200 else max_dist
+        len = goal_len/ dist
         goal = (local_landmarks[target.id][0]*len,local_landmarks[target.id][1]*len)
 
         #TODO init this
@@ -270,8 +271,9 @@ while target_stack or target:
         delta = target_pos - np.array([est_pose.getX(), est_pose.getY()])
 
         dist = np.linalg.norm(delta)
-        dist = min(dist, 200)
-        length = min(abs(dist - 60), abs(dist -30) )/ dist
+        max_dist = min(dist, 201)
+        goal_len = min(abs(max_dist - 60), abs(max_dist -30) ) if dist <= 200 else max_dist
+        length = goal_len/ dist
 
         goal = np.array([est_pose.getX(), est_pose.getY()]) + delta * length
 

@@ -68,7 +68,7 @@ def Execute_path(path, pose, mirte, mcl, local_landmarks, local_obstacles, landm
         current_pose[2] = np.mod(target_theta, 2.0 * np.pi)
         u = [0.0, turned]
 
-        print(f"Turned: {turned}")
+        print(f"Distance turned: {turned}")
 
         #get_observations
         new_z, new_local_landmarks, new_local_obstacles = cam.get_observations(landmarks, mirte)

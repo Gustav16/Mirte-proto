@@ -268,6 +268,8 @@ while target_stack or target:
 
         target_run = True
 
+        path = None
+
         while path is None:
             path = planning.rrt_plan([est_pose.getX(), est_pose.getY()], temp_global_map, goal, False)
             #could mirte find a proper plan with current goal or should it be updated

@@ -9,7 +9,6 @@ https://github.com/AtsushiSakai/PythonRobotics/blob/master/PathPlanning/RRT/rrt.
 import numpy as np
 import matplotlib.pyplot as plt
 #from matplotlib.animation import FFMpegWriter
-import numpy as np
 from robot_models import RobotModel
 
 import cv2 # Import the OpenCV library
@@ -18,6 +17,8 @@ import time
 from pprint import *
 import sys
 import os
+from ku_mirte import KU_Mirte
+import grid_occ, robot_models, local_map
 
 class RRT:
     """
@@ -199,9 +200,6 @@ sys.path.append(
     )
 )
 
-from ku_mirte import KU_Mirte
-import grid_occ, robot_models, local_map
-from visualize_local_map import plot_local_map, plot_path, PNG_PATH
 
 
 def Execute_path(path, pose, mirte):
@@ -274,92 +272,3 @@ def simplify_path(path, rrt):
     # Tilbage til samme format som før (mål først), så resten af koden virker uændret
     simplified.reverse()
     return simplified
-
-
-        
-
-def main():
-    path_res = 0.1 #10 cm
-    mirte = KU_Mirte()
-    time.sleep(1)  # wait for camera to setup
-    map = local_map.LocalMap(low=(-1,0), high=(1,2))
-    map.update(mirte)
-    robot = robot_models.PointMassModel(ctrl_range=[-path_res, path_res])
-
-    #standard goal destination
-    goal = [0, 1.9]
-
-
-    print('landmark amount:', len(map.landmarks))
-    # #go between 2 landmarks using the method from between.py
-    # between_goal, gate_ids = find_between_goal(map)
-
-    # if between_goal is None:
-    #     print('could not find a valid goal between landmarks')
-    #     del mirte
-    #     return
-
-    # goal = between_goal
-    # print(f'using passage between IDs {gate_ids[0]} and {gate_ids[1]}')
-    # print(f'goal: x={goal[0]:+.3f}, y={goal[1]:+.3f}')
-        
-    
-    rrt = RRT(
-        start=[0, 0],
-        goal=goal,
-        robot_model=robot,
-        map=map,
-        expand_dis=0.4, #0.4 meters
-        path_resolution=path_res, #10 cm
-        )
-    
-    show_animation = False
-    metadata = dict(title="RRT Test")
-    #writer = FFMpegWriter(fps=15, metadata=metadata)
-    writer = None
-    fig = plt.figure()
-    if writer is not None:
-        with writer.saving(fig, "rrt_test.mp4", 100):
-            path = rrt.planning(animation=show_animation, writer=writer)
-
-            if path is None:
-                print("Cannot find path")
-            else:
-                print("found path!!")
-
-                # Draw final path
-                if show_animation:
-                    rrt.draw_graph()
-                    plt.plot([x for (x, y) in path], [y for (x, y) in path], '-r')
-                    plt.grid(True)
-                    plt.pause(0.01)  # Need for Mac
-                    plt.show()
-                    writer.grab_frame()
-    else:
-        #do not save videos
-        path = rrt.planning(animation=show_animation, writer=writer)
-
-        if path is None:
-            print("Cannot find path")
-        else:
-            print("found path!!")
-            print(path)
-            simplified_path = simplify_path(path, rrt)
-            print(simplified_path)
-            # CALL simplified path
-            #execute path
-            Execute_path(simplified_path, mirte)
-
-            # Draw local map + planned route in the same graph
-            # (generate_final_course returns the path goal-first)
-            plot_local_map(map.landmarks)
-            plot_path(simplified_path, start=simplified_path[-1], goal=simplified_path[0])
-            plt.savefig(PNG_PATH, dpi=200, bbox_inches="tight")
-            print(f"Saved plot to: {PNG_PATH}")
-            plt.pause(0.01)  # Need for Mac
-
-            
-    del mirte
-
-if __name__ == '__main__':
-    main()

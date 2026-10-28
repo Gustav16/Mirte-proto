@@ -183,7 +183,7 @@ while target_stack or target:
     reached_target = has_reached_target(target, z, est_pose, has_converged)
 
     if reached_target:
-        print("target beleived to have been reched")
+        print(f"target: {target.id} beleived to have been reched")
         reset_turn_variables()
         target, previous_target = target_update(target, previous_target, global_map)
         if target:
@@ -193,6 +193,7 @@ while target_stack or target:
 
     ### control flow of decisions ###
     if target.id in local_landmarks: #if the mirte sees the target then create and excute a path plan
+        print()
         #TODO create rrt path as close to target as possible
         dist = z[target.id][0]
         Local_MAP = planning.create_local_map(local_landmarks, local_obstacles, dist, previous_target, target)

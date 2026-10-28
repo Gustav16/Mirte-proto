@@ -133,7 +133,7 @@ def print_observations(z, local_landmarks, local_obstacles) -> None:
     if z:
         print("Landmarks seen:")
     for id in z:
-        print(f"Landmark id = {id}, dist = {z[id][0]}, angle = {z[id][0]} local pos: x = {local_landmarks[id][0]}, y = {local_landmarks[id][1]}")
+        print(f"Landmark id = {id}, dist = {z[id][1]}, angle = {z[id][0]} local pos: x = {local_landmarks[id][0]}, y = {local_landmarks[id][1]}")
     if local_obstacles:
         print("Obstacles seen:")
     for id in local_obstacles:

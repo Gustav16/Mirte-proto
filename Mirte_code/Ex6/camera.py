@@ -62,7 +62,7 @@ CAMERA_OFFSET_FROM_ROBOT_CENTER = np.array([
 # estimatePoseSingleMarkers() returns tvec in the same unit as the marker
 # length. Since ARUCO_MARKER_LENGTH_MM = 145, tvec is in millimetres.
 # The box-depth offset must therefore ALSO be in millimetres here.
-OBJECT_DEPTH_M = 0.25
+OBJECT_DEPTH_M = 0.22
 OBJECT_DEPTH_MM = OBJECT_DEPTH_M * 1000.0
 
 # Shift from the ArUco paper plane toward the approximate box center.

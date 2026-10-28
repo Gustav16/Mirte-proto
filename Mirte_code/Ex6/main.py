@@ -22,7 +22,7 @@ landmarks = {
     landmarkIDs[0]: (0.0, 0.0),
     landmarkIDs[1]: (0.0, 300.0),
     landmarkIDs[2]: (400.0, 0.0),  
-    landmarkIDs[3]: (300.0, 400.0)  
+    landmarkIDs[3]: (400.0, 300.0)  
 }
 
 ### Target class ###

@@ -78,8 +78,8 @@ def get_observations(landmarks, mirte):
     local_landmarks = {}
     local_obstacles = {}
 
-    time.sleep(3)
-    img = mirte.get_image()
+    #time.sleep(3)
+    img = mirte.get_next_image()
     
     if img is None:
         raise ValueError('could not retrive image')

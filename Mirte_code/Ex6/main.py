@@ -270,7 +270,8 @@ while target_stack or target:
         delta = target_pos - np.array([est_pose.getX(), est_pose.getY()])
 
         dist = np.linalg.norm(delta)
-        length = (dist - 60) / dist
+        dist = min(dist, 200)
+        length = min(abs(dist - 60), abs(dist -30) )/ dist
 
         goal = np.array([est_pose.getX(), est_pose.getY()]) + delta * length
 

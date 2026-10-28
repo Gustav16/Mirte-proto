@@ -13,27 +13,48 @@ MAX_SEGMENT_LEN = 200 # cm, take a picture at least this often while driving
 
 ### planning methods ###
 
-def rrt_plan(pos, m, goal, local_plan) -> list[list[float, float]]| None: #TODO
-    """Plan in the world frame (m) from MIRTE's estimated position (from the measurements and motion updates of the
-    particle filter) to GOAL around the boxes with mirte_rrt's RRT, then shorten it with simplify_path.
-    Returns the simplified path goal first (as mirte_rrt gives it), or None."""
+def rrt_plan(pos, m, goal, local_plan) -> list[list[float, float]] | None:
+
     start = np.array([pos[0], pos[1]])
     goal = np.array(goal)
+
     # Same LocalMap as Ex4 (box radius 0.20 m + MIRTE radius 0.22 m), the boxes as landmarks in the world frame
     robot = robot_models.PointMassModel(ctrl_range=[-RRT_PATH_RES, RRT_PATH_RES])
+
     size_array = [1, 1.25, 1.5, 1.75, 2]
     area = m.map_area.copy()
-    for i in range(RRT_TRIES): # RRT is random, try again if it does not find a path
+
+    for i in range(RRT_TRIES):  # RRT is random, try again if it does not find a path
         if local_plan:
-            m.map_area = area * size_array[i]
-        rrt = RRT(start=start, goal=goal, robot_model=robot, map=m,
-                expand_dis=RRT_EXPAND_DIS, path_resolution=RRT_PATH_RES)
+
+            m.map_area = [
+                np.asarray(bound, dtype=float) * size_array[i]
+                for bound in area
+            ]
+
+        rrt = RRT(
+            start=start,
+            goal=goal,
+            robot_model=robot,
+            map=m,
+            expand_dis=RRT_EXPAND_DIS,
+            path_resolution=RRT_PATH_RES
+        )
+
         path = rrt.planning(animation=False)
+
         if path is not None:
-             return split_long_segments(simplify_path(path, rrt), MAX_SEGMENT_LEN)
-    #path could not be found so reseting map area if local plan
+            result = split_long_segments(simplify_path(path, rrt), MAX_SEGMENT_LEN)
+
+            if local_plan:
+                m.map_area = area
+
+            return result
+
+    # Path could not be found, so reset map area if local plan
     if local_plan:
         m.map_area = area
+
     return None
 
 def create_local_map(local_landmarks, local_obstacles, dist, previous_target, target) -> local_map.LocalMap: #TODO

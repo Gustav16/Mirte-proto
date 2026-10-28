@@ -75,7 +75,7 @@ time.sleep(0.4)
 #convergence constants
 X_VAR_ERR = 25**2 #reduced from 30 to 25
 Y_VAR_ERR = 25**2  #reduced from 30 to 25
-THETA_VAR_ERR = np.radians(15**2) #reduced from 20 to 15
+THETA_VAR_ERR = np.radians(15)**2 #reduced from 20 to 15
 
 
 #RRT init 

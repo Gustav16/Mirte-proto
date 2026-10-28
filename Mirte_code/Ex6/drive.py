@@ -3,6 +3,7 @@ import camera as cam
 import numpy as np
 from mcl import MCL
 from planning import should_replan
+import time
 
 
 ###DRVING CONSTANTS
@@ -12,6 +13,7 @@ LINEAR_SPEED = 0.3
 ANGULAR_SPEED = 0.7
 LEFT_TRUN_SCALER = 1.05 
 RIGHT_TRUN_SCALER = 1.1
+SAFE_DISTANCE = 0.3
 
 #### DRIVING METHODS ####
 def turn(theta, mirte) -> float:
@@ -26,25 +28,67 @@ def turn(theta, mirte) -> float:
         return theta
     return 0.0
 
-def drive_foward(distance, mirte, in_meters = False) -> float: #TODO make use of obstacle avoidance
-    #convert from cm to meters
+def obstacle_avoidance(mirte) -> bool:
+    "method checking if we need to stop do to obstacle"
+    # Read sonar sensors
+    sonar = mirte.sonar
+
+    left = sonar["front_left"]
+    right = sonar["front_right"]
+
+    print(
+        f"Left sonar dist: {left*100:.2f} cm | "
+        f"Right sonar: {right*100:.2f} cm"
+    )
+    
+            # No obstacle
+    if left <= SAFE_DISTANCE and right <= SAFE_DISTANCE:
+        print('obstacle detected')
+        return False
+    if( left <= 0.15) or (right <= 0.15):
+            print('obstacle detected')
+            return False
+    return True
+
+
+def drive_forward(distance, mirte, in_meters=False) -> float: #TODO make use of obstacle avoidance
+    # Convert from cm to meters
     if not in_meters:
-        distance = distance/100
+        distance = distance / 100
+
+    can_drive = obstacle_avoidance(mirte)
+    if not can_drive:
+        return 0.0, False
+
+    start = time.perf_counter()
+    drive_time = distance / LINEAR_SPEED
     
     mirte.drive(
-                LINEAR_SPEED,
-                LINEAR_OFFSET,
-                distance / LINEAR_SPEED
-            )
+        LINEAR_SPEED,
+        LINEAR_OFFSET,
+        drive_time,
+        blocking=False
+    )
 
-    return distance*100
+    while time.perf_counter() - start < drive_time -0.2:
+        can_drive = obstacle_avoidance(mirte)
+        if not can_drive:
+            driven_dist = ((time.perf_counter() - start)/drive_time)*distance #TODO check if this needs updating
+            mirte.stop()
+            return driven_dist, False
+
+        time.sleep(0.05)
+
+    return drive_time, True
+
 
 def Execute_path(path, pose, mirte, mcl, local_landmarks, local_obstacles, landmarks, map, global_map, target, target_run, global_plan = False) -> bool:
     "method for executing path"
     current_pose = np.array(pose, dtype=float).copy()
     u = [0.0, 0.0]
     #TODO be aware i changed from path.revsere() to this, that could make trouble
-    for point in list(reversed(path))[1:]:
+    list_path = list(reversed(path))[1:]
+    for point in list_path:
         dx = point[0] - current_pose[0]
         dy = point[1] - current_pose[1]
 
@@ -87,7 +131,11 @@ def Execute_path(path, pose, mirte, mcl, local_landmarks, local_obstacles, landm
             
 
         #TODO add obstavle avoince during drive with sonar
-        dist_driven = drive_foward(distance, mirte, in_meters= True)
+        dist_driven, can_safely_drive = drive_forward(distance, mirte, in_meters= True)
+        if not can_safely_drive:
+            #if close to mirte
+            if (distance - dist_driven) > 30 or point is not list_path[-1]:
+                return False
 
         #get_observations
         new_z, new_local_landmarks, new_local_obstacles = cam.get_observations(landmarks, mirte)

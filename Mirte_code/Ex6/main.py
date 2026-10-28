@@ -95,7 +95,7 @@ HAS_TURNED_RIGHT = False
 turns = 0
 
 #max turn constant
-SCAN_STEP = np.radians(40)
+SCAN_STEP = np.radians(30)
 MAX_TURNS = (np.radians(360)//SCAN_STEP) - 2
 
 ### Method for reseting turning varibles ###
@@ -271,7 +271,7 @@ while target_stack or target:
 
         goal = np.array([est_pose.getX(), est_pose.getY()]) + delta * length
 
-        target_run = True
+        target_run = False
 
         path = None
 

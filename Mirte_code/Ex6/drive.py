@@ -63,13 +63,17 @@ def Execute_path(path, pose, mirte, mcl, local_landmarks, local_obstacles, landm
         #turn
         turned = turn(dtheta, mirte)
 
+
         #update current pose
         current_pose[2] = np.mod(target_theta, 2.0 * np.pi)
         u = [0.0, turned]
 
+        print(f"Distance turned: {turned}")
+
         #get_observations
         new_z, new_local_landmarks, new_local_obstacles = cam.get_observations(landmarks, mirte)
 
+        
         #print observations
         cam.print_observations(new_z, new_local_landmarks, new_local_obstacles)
         
@@ -93,6 +97,7 @@ def Execute_path(path, pose, mirte, mcl, local_landmarks, local_obstacles, landm
 
         #update mcl
         u = [dist_driven, turned]
+        print(f"Distance driven: {dist_driven}, distance turned: {turned}")
         MCL.update_mcl(mcl, u, new_z, global_map, len(mcl.particles))
         
         #replan check

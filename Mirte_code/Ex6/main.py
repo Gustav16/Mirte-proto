@@ -206,7 +206,7 @@ while target_stack or target:
 
         dist =(min(200, dist))
         Local_MAP = planning.create_local_map(local_landmarks, local_obstacles, dist, previous_target, target)
-        len  = min(abs(dist - 60), abs(dist - 20))/dist
+        len  = min(abs(dist - 60), abs(dist - 20))/z[target.id][0]
         goal = (local_landmarks[target.id][0]*len,local_landmarks[target.id][1]*len)
 
         #TODO init this

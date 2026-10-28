@@ -162,6 +162,6 @@ def Execute_path(path, pose, mirte, mcl, local_landmarks, local_obstacles, landm
         current_pose[0] = point[0]
         current_pose[1] = point[1]
     #whether we did random exploration or if we are drivng towards the target
-        if target_run:
-            return True
-        return False
+    if target_run:
+        return True
+    return False

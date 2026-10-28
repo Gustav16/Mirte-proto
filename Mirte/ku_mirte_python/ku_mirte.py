@@ -114,7 +114,7 @@ class KU_Mirte:
         print("Starting executor thread...")
         self.executor = MultiThreadedExecutor()
 
-        # self.executor.add_node(self.camera_sub)
+        self.executor.add_node(self.camera_sub)
         self.executor.add_node(self.camera_compressed_sub)
         self.executor.add_node(self.movement_pub)
         self.executor.add_node(self.lidar_sub)

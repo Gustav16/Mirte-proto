@@ -4,8 +4,6 @@ from mcl import MCL
 import mcl; print(mcl.__file__)
 import particle as pcl
 import camera as cam
-from rrt import RRT, simplify_path
-import robot_models
 import numpy as np
 import time
 import drive
@@ -75,9 +73,9 @@ mirte = KU_Mirte()
 time.sleep(0.4)
 
 #convergence constants
-X_VAR_ERR = 30**2
-Y_VAR_ERR = 30**2
-THETA_VAR_ERR = 20**2
+X_VAR_ERR = 25**2 #reduced from 30 to 25
+Y_VAR_ERR = 25**2  #reduced from 30 to 25
+THETA_VAR_ERR = 15**2 #reduced from 20 to 15
 
 
 #RRT init 

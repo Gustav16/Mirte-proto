@@ -2,6 +2,9 @@ import numpy as np
 import particle as pcl
 import random_numbers as rn
 
+#delte
+from time import perf_counter
+
 class MCL:
     "MCL (monte-carlo localization) class"
     def __init__(self, 
@@ -213,8 +216,18 @@ class MCL:
 
     def mcl(self, u, z, m):
         "augmented MCL function"
+
+        t0 = perf_counter()
         particles = np.array([self.sample_motion_model_with_map(u, x_last, m) for x_last in self.particles])
+        t1 = perf_counter()
         weights =  np.array([self.measurement_model(z, x_t, m) for x_t in particles])
+        t2 = perf_counter()
+
+        #debugging the
+        print(
+        f"Motion: {t1-t0:.3f}s | "
+        f"Measurements: {t2-t1:.3f}s"
+        )
 
         #keep this for now may not use
         for p, w in zip(particles, weights):

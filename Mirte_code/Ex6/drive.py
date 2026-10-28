@@ -13,7 +13,7 @@ LINEAR_SPEED = 0.3
 ANGULAR_SPEED = 0.7
 LEFT_TRUN_SCALER = 1.05 
 RIGHT_TRUN_SCALER = 1.1
-SAFE_DISTANCE = 0.3
+SAFE_DISTANCE = 0.35
 
 #### DRIVING METHODS ####
 def turn(theta, mirte) -> float:
@@ -45,7 +45,7 @@ def obstacle_avoidance(mirte) -> bool:
     if left <= SAFE_DISTANCE and right <= SAFE_DISTANCE:
         print('obstacle detected')
         return False
-    if( left <= 0.15) or (right <= 0.15):
+    if( left <= 0.20) or (right <= 0.20):
             print('obstacle detected')
             return False
     return True

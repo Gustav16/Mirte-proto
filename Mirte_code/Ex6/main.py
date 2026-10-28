@@ -8,7 +8,7 @@ import numpy as np
 import time
 import drive
 import planning
-import mirte_visualizer as vis
+# import mirte_visualizer as vis
 
 
 
@@ -58,7 +58,7 @@ global_map.landmarks = [[list(landmarks[ID]), 20.0 + 40.0, ID] for ID in landmar
 
 # VISUALIZER
 
-vis.start(globals(), period=5.0, web=True)
+# vis.start(globals(), period=5.0, web=True)
 
 VALID_RANGE = 40
 SUCCESS__RANGE = LANDMARK_RADIUS + VALID_RANGE

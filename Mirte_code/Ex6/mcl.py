@@ -168,8 +168,49 @@ class MCL:
         
         return pcl.Particle(x_prime, y_prime, theta_prime)
 
+    @staticmethod
+    def _in_collision_fast(pos, m):
+        """Equivalent to LocalMap.in_collision for the Ex6 circular map.
+
+        Uses scalar squared distances instead of allocating NumPy arrays for
+        each particle.  Map boundaries, landmark radii, obstacle radii and
+        the <= collision threshold are unchanged.  The original map remains
+        untouched.  See test_mcl_step3.py for equivalence checks.
+        """
+        # Preserve compatibility with other map implementations that expose
+        # in_collision() but not the Ex6 map attributes.
+        if not (hasattr(m, 'map_area') and hasattr(m, 'landmarks')
+                and hasattr(m, 'obstacles') and hasattr(m, 'mirte_radius')
+                and hasattr(m, 'obstacale_radius')):
+            return bool(m.in_collision(pos))
+
+        x = float(pos[0])
+        y = float(pos[1])
+        low, high = m.map_area
+
+        # Exactly the same inclusive/exclusive bounds as LocalMap.in_collision:
+        # outside is forbidden; points exactly on the boundary are allowed.
+        if x < low[0] or y < low[1] or x > high[0] or y > high[1]:
+            return True
+
+        robot_radius = m.mirte_radius
+        for landmark, radius, _landmark_id in m.landmarks:
+            dx = x - landmark[0]
+            dy = y - landmark[1]
+            if dx * dx + dy * dy <= (robot_radius + radius) ** 2:
+                return True
+
+        clearance_sq = (m.obstacale_radius + robot_radius) ** 2
+        for obstacle, _obstacle_id in m.obstacles:
+            dx = x - obstacle[0]
+            dy = y - obstacle[1]
+            if dx * dx + dy * dy <= clearance_sq:
+                return True
+
+        return False
+
     def is_state_possible(self, x_t, m):
-        return not m.in_collision((x_t.getX(), x_t.getY()))
+        return not self._in_collision_fast((x_t.getX(), x_t.getY()), m)
     
     def sample_motion_model_with_map(self, u, x_last, m, max_tries = 10):
         "sampling with map"
@@ -188,7 +229,7 @@ class MCL:
             y = np.random.uniform(m.map_area[0][1], m.map_area[1][1])
             theta = np.random.uniform(0, 2*np.pi)
 
-            if not m.in_collision([x,y]):
+            if not self._in_collision_fast((x, y), m):
                 return pcl.Particle(x, y, theta, 1.0/self.M)
 
     def sample_from_measurement(self, z, m, sigma_dist = 5.0, sigma_angle = 0.05):

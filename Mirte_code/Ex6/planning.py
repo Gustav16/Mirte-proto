@@ -71,7 +71,7 @@ def should_replan(landmarks, obstales, new_landmarks, new_obstacles, map, curr_p
             if not global_plan:
                 delta_x, delta_y = new_landmarks[id]
                 pos = np.array([
-                    x + delta_x * np.cos(theta) - delta_y * np.sin(theta),
+                    x + delta_x * np.cos(theta) - delta_y * np.sin(theta),#TODO CHat says rotation are reversed
                     y + delta_x * np.sin(theta) + delta_y * np.cos(theta)])
                 if is_outisde_map(pos, 60 ,map.map_area): #TODO set this properly
                     #landmark can safely be added as it is outise the map
@@ -83,7 +83,7 @@ def should_replan(landmarks, obstales, new_landmarks, new_obstacles, map, curr_p
                 if not global_plan:
                     delta_x, delta_y = new_obstacles[id]
                     pos = np.array([
-                        x + delta_x * np.cos(theta) - delta_y * np.sin(theta),
+                        x + delta_x * np.cos(theta) - delta_y * np.sin(theta), #TODO CHat says rotation are reversed
                         y + delta_x * np.sin(theta) + delta_y * np.cos(theta)])
                     if is_outisde_map(pos, map.obstacale_radius, map.map_area):
                         #obstacle can safely be added as it is outise the map

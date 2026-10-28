@@ -4,6 +4,7 @@ import cv2
 import numpy as np
 import matplotlib.pyplot as plt
 from matplotlib.patches import Circle
+import time
 
 sys.path.append(
     os.path.join(
@@ -77,7 +78,7 @@ def get_observations(landmarks, mirte):
     local_landmarks = {}
     local_obstacles = {}
 
-
+    time.sleep(3)
     img = mirte.get_image()
     
     if img is None:

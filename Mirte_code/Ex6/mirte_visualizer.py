@@ -811,7 +811,7 @@ def start(main_globals=None, output=None, period=5.0, web=False, port=8765):
 
     Parameters:
         main_globals: globals() from main.py (gives access to target and map)
-        output: optional path; defaults to mirte_debug beside this file
+        output: optional path; defaults to Ex6/mirte_debug on MIRTE
         period: seconds between PNG screenshots (default five)
         web: optional built-in HTTP preview at localhost:8765
     """
@@ -820,7 +820,7 @@ def start(main_globals=None, output=None, period=5.0, web=False, port=8765):
         return _ACTIVE_RECORDER
     if period <= 0:
         raise ValueError('period must be > 0')
-    output = Path(output).resolve() if output else Path(__file__).resolve().parent / 'mirte_debug'
+    output = Path(output).resolve() if output else Path('/home/mirte/Mirte-proto/Mirte_code/Ex6/mirte_debug')
     rec = Recorder(output, period=period, publisher=True)
     rec.globals = main_globals if main_globals is not None else {}
     try:
@@ -871,7 +871,7 @@ def main():
     parser.add_argument('--main',default='main.py',help='Existing main.py to run unchanged')
     parser.add_argument('--background', action='store_true', help='Run unmodified main in foreground, map rendering in another process')
     parser.add_argument('--watch', action='store_true', help=argparse.SUPPRESS)
-    parser.add_argument('--output',default='mirte_debug',help='Directory for PNG and logs')
+    parser.add_argument('--output',default='/home/mirte/Mirte-proto/Mirte_code/Ex6/mirte_debug',help='Directory for PNG and logs')
     parser.add_argument('--period',type=float,default=5.0,help='Save a frame every N seconds')
     parser.add_argument('--web',action='store_true',help='Offer live image over localhost:8765')
     parser.add_argument('--port',type=int,default=8765)

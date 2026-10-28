@@ -205,11 +205,12 @@ while target_stack or target:
         print(f"Target: {target.id} seen at distance {dist}. Creating local path")
         Local_MAP = planning.create_local_map(local_landmarks, local_obstacles, dist, previous_target, target)
 
-        len  = (dist - 60)/dist
+        dist =(min(200, dist))
+        len  = min(abs(dist - 60), abs(dist - 20))/dist
         goal = (local_landmarks[target.id][0]*len,local_landmarks[target.id][1]*len)
 
         #TODO init this
-        target_run = True
+        target_run = z[target.id][0] <= 200
 
         path = None
 

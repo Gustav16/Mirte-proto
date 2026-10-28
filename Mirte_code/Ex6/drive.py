@@ -149,7 +149,7 @@ def Execute_path(path, pose, mirte, mcl, local_landmarks, local_obstacles, landm
         MCL.update_mcl(mcl, u, new_z, global_map, len(mcl.particles))
        
         
-        return False
+        #return False
         
         #replan check
         replan = should_replan(local_landmarks, local_obstacles, new_local_landmarks, new_local_obstacles, map, current_pose, target, global_plan)

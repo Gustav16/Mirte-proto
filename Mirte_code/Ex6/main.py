@@ -185,10 +185,9 @@ while target_stack or target:
     reached_target = has_reached_target(target, z, est_pose, has_converged)
 
     if reached_target:
-        #TODO add print information as to we beilve we reached target
         print("target beleived to have been reched")
         reset_turn_variables()
-        target, previous_target = target_update(target, previous_target)
+        target, previous_target = target_update(target, previous_target, global_map)
         if target:
             raise ValueError('target has not been set to None')
         u_pending = [0.0, 0.0]

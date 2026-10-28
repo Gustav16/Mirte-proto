@@ -19,7 +19,7 @@ def rrt_plan(pos, m, goal, local_plan) -> list[list[float, float]]| None: #TODO
     goal = np.array(goal)
     # Same LocalMap as Ex4 (box radius 0.20 m + MIRTE radius 0.22 m), the boxes as landmarks in the world frame
     robot = robot_models.PointMassModel(ctrl_range=[-RRT_PATH_RES, RRT_PATH_RES])
-    size_array = [1, 1.25, 1,5, 1.75, 2]
+    size_array = [1, 1.25, 1.5, 1.75, 2]
     area = m.map_area.copy()
     for i in range(RRT_TRIES): # RRT is random, try again if it does not find a path
         if local_plan:

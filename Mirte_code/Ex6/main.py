@@ -203,13 +203,14 @@ while target_stack or target:
         #TODO create rrt path as close to target as possible
         dist = z[target.id][0]
         print(f"Target: {target.id} seen at distance {dist}. Creating local path")
-        Local_MAP = planning.create_local_map(local_landmarks, local_obstacles, dist, previous_target, target)
 
-        len  = (dist - 60)/dist
+        dist =(min(200, dist))
+        Local_MAP = planning.create_local_map(local_landmarks, local_obstacles, dist, previous_target, target)
+        len  = min(abs(dist - 60), abs(dist - 20))/z[target.id][0]
         goal = (local_landmarks[target.id][0]*len,local_landmarks[target.id][1]*len)
 
         #TODO init this
-        target_run = True
+        target_run = z[target.id][0] <= 200
 
         path = None
 
@@ -269,7 +270,8 @@ while target_stack or target:
         delta = target_pos - np.array([est_pose.getX(), est_pose.getY()])
 
         dist = np.linalg.norm(delta)
-        length = (dist - 60) / dist
+        dist = min(dist, 200)
+        length = min(abs(dist - 60), abs(dist -30) )/ dist
 
         goal = np.array([est_pose.getX(), est_pose.getY()]) + delta * length
 

@@ -259,8 +259,11 @@ while target_stack or target:
         temp_global_map = global_map.Copy()
 
         temp_global_map.obstacles = [( np.array([
-            est_pose.getX() + x * np.cos(est_pose.getTheta()) - y * np.sin(est_pose.getTheta()),
-            est_pose.getY() + x * np.sin(est_pose.getTheta()) + y * np.cos(est_pose.getTheta())
+            est_pose.getX() + y * np.cos(est_pose.getTheta()) + x * np.sin(est_pose.getTheta()),
+            est_pose.getY() + y * np.sin(est_pose.getTheta()) - x * np.cos(est_pose.getTheta())
+
+            #est_pose.getX() + x * np.cos(est_pose.getTheta()) - y * np.sin(est_pose.getTheta()),
+            #est_pose.getY() + x * np.sin(est_pose.getTheta()) + y * np.cos(est_pose.getTheta())
             ]),
             id
         )

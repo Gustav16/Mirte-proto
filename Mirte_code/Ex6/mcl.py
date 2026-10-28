@@ -209,6 +209,140 @@ class MCL:
 
         return False
 
+    # STEP 4: BATCH CALCULATIONS (same mathematical model, NumPy arrays)
+    @staticmethod
+    def _collision_mask_batch(positions, m):
+        """Collision for an (N,2) array, matching _in_collision_fast for Ex6.
+
+        For other map types, use the map's own collision method for safety.
+        """
+        positions = np.asarray(positions, dtype=float)
+        if positions.ndim != 2 or positions.shape[1] != 2:
+            raise ValueError("positions must be an (N, 2) array")
+
+        if not (hasattr(m, 'map_area') and hasattr(m, 'landmarks')
+                and hasattr(m, 'obstacles') and hasattr(m, 'mirte_radius')
+                and hasattr(m, 'obstacale_radius')):
+            return np.fromiter((bool(m.in_collision(xy)) for xy in positions),
+                               dtype=bool, count=len(positions))
+
+        x = positions[:, 0]
+        y = positions[:, 1]
+        low, high = m.map_area
+        collided = ((x < low[0]) | (y < low[1]) |
+                    (x > high[0]) | (y > high[1]))
+
+        robot_radius = m.mirte_radius
+        for landmark, radius, _landmark_id in m.landmarks:
+            dx = x - landmark[0]
+            dy = y - landmark[1]
+            collided |= (dx * dx + dy * dy <= (robot_radius + radius) ** 2)
+
+        clearance_sq = (m.obstacale_radius + robot_radius) ** 2
+        for obstacle, _obstacle_id in m.obstacles:
+            dx = x - obstacle[0]
+            dy = y - obstacle[1]
+            collided |= (dx * dx + dy * dy <= clearance_sq)
+
+        return collided
+
+    def _sample_motion_batch(self, u, m):
+        """Sample motion for every particle, retry collisions up to 10 times.
+
+        Each particle uses its ORIGINAL pose on every retry, as in the
+        original sample_motion_model_with_map. Failed particles are reset
+        to a random collision-free pose, just like add_noise().
+
+        Independent Gaussian samples have the same distributions as the
+        scalar implementation, but a different order of random draws.
+        """
+        poses = np.array([(p.getX(), p.getY(), p.getTheta())
+                          for p in self.particles], dtype=float)
+        result = np.empty_like(poses)
+        pending = np.arange(len(poses))
+        d_trans = float(u[0])
+        d_rot = float(u[1])
+        stationary = (d_trans == 0.0 and d_rot == 0.0)
+
+        if not stationary:
+            sigma_rot1 = np.sqrt(self.alpha1 * d_rot**2 + self.alpha2 * d_trans**2)
+            sigma_trans = np.sqrt(self.alpha3 * d_trans**2 + self.alpha4 * d_rot**2)
+            sigma_rot2 = np.sqrt(self.alpha2 * d_trans**2)
+
+        for _attempt in range(10):
+            if not len(pending):
+                break
+            old = poses[pending]
+            count = len(pending)
+            if stationary:
+                # pcl.add_uncertainty: independent x/y/theta Gaussian noise.
+                x = old[:, 0] + 5.0 * np.random.randn(count)
+                y = old[:, 1] + 5.0 * np.random.randn(count)
+                theta = np.mod(old[:, 2] + 0.1745 * np.random.randn(count),
+                               2.0 * np.pi)
+            else:
+                # Exact rotate-then-translate motion-model equations.
+                rot1 = d_rot + np.random.normal(0.0, sigma_rot1, count)
+                trans = d_trans + np.random.normal(0.0, sigma_trans, count)
+                rot2 = np.random.normal(0.0, sigma_rot2, count)
+                theta_mid = old[:, 2] + rot1
+                x = old[:, 0] + trans * np.cos(theta_mid)
+                y = old[:, 1] + trans * np.sin(theta_mid)
+                theta = np.mod(theta_mid + rot2, 2.0 * np.pi)
+
+            candidate = np.column_stack((x, y, theta))
+            invalid = self._collision_mask_batch(candidate[:, :2], m)
+            result[pending[~invalid]] = candidate[~invalid]
+            pending = pending[invalid]
+
+        # The original add_noise() samples uniform poses until they are free.
+        # Batch only the particles which exceeded the 10 attempts.
+        while len(pending):
+            count = len(pending)
+            candidate = np.column_stack((
+                np.random.uniform(m.map_area[0][0], m.map_area[1][0], count),
+                np.random.uniform(m.map_area[0][1], m.map_area[1][1], count),
+                np.random.uniform(0.0, 2.0 * np.pi, count),
+            ))
+            invalid = self._collision_mask_batch(candidate[:, :2], m)
+            result[pending[~invalid]] = candidate[~invalid]
+            pending = pending[invalid]
+
+        return result
+
+    def _measurement_batch(self, z, poses, m):
+        """Same p_hit likelihood as the original, for all particles at once.
+
+        The original p_hit multiplies by 1 for non-observed landmarks. Hence
+        only observed landmark IDs are computed here. The Gaussian noise and
+        angular wrapping are unchanged.
+        """
+        x = poses[:, 0]
+        y = poses[:, 1]
+        theta = poses[:, 2]
+        if self.camera_offset:
+            cam_x = x + self.camera_offset * np.cos(theta)
+            cam_y = y + self.camera_offset * np.sin(theta)
+        else:
+            cam_x, cam_y = x, y
+        weights = np.ones(len(poses), dtype=float)
+
+        # Match the landmark iteration order of true_z_for_landmarks/p_hit.
+        for pos, _radius, landmark_id in m.landmarks:
+            measured = z.get(landmark_id)
+            if measured is None:
+                continue
+            dx = pos[0] - cam_x
+            dy = pos[1] - cam_y
+            expected_dist = np.sqrt(dx * dx + dy * dy)
+            expected_bearing = np.mod(np.arctan2(dy, dx) - theta + np.pi,
+                                     2.0 * np.pi) - np.pi
+            bearing_error = np.mod(measured[1] - expected_bearing + np.pi,
+                                   2.0 * np.pi) - np.pi
+            weights *= self.gaussian_pdf(measured[0], expected_dist, 10)
+            weights *= self.gaussian_pdf(bearing_error, 0, 0.1745)
+        return weights
+
     def is_state_possible(self, x_t, m):
         return not self._in_collision_fast((x_t.getX(), x_t.getY()), m)
     
@@ -256,52 +390,53 @@ class MCL:
         return pcl.Particle(particle.getX(), particle.getY(), particle.getTheta(), particle.getWeight())
 
     def mcl(self, u, z, m):
-        "augmented MCL function"
-
+        """Augmented MCL using vectorized motion and measurement equations."""
         t0 = perf_counter()
-        particles = np.array([self.sample_motion_model_with_map(u, x_last, m) for x_last in self.particles])
+        poses = self._sample_motion_batch(u, m)
         t1 = perf_counter()
-        weights =  np.array([self.measurement_model(z, x_t, m) for x_t in particles])
+        weights = self._measurement_batch(z, poses, m)
         t2 = perf_counter()
 
-        #debugging the
-        print(
-        f"Motion: {t1-t0:.3f}s | "
-        f"Measurements: {t2-t1:.3f}s"
-        )
+        print(f"Motion: {t1-t0:.3f}s | Measurements: {t2-t1:.3f}s")
 
-        #keep this for now may not use
-        for p, w in zip(particles, weights):
-            p.setWeight(w)
-        
-        #weights are a product over the seen landmarks, so their size jumps when the number of seen landmarks changes.
-        #compare the average per seen landmark instead, so w_fast/w_slow only reacts to how well the particles fit
-        n_seen = max(1, sum(1 for pos, radius, id in m.landmarks if id in z))
+        # Keep the same adaptive W_fast/W_slow update and resampling rule.
+        n_seen = max(1, sum(1 for pos, radius, landmark_id in m.landmarks
+                            if landmark_id in z))
         w_avg = np.mean(weights) ** (1.0 / n_seen)
-        if self.W_fast is None: #init as average of weights
+        if self.W_fast is None:
             self.W_fast = self.W_slow = w_avg
         else:
-            self.W_fast += self.fast_const*(w_avg - self.W_fast)
-            self.W_slow += self.slow_const*(w_avg - self.W_slow)
+            self.W_fast += self.fast_const * (w_avg - self.W_fast)
+            self.W_slow += self.slow_const * (w_avg - self.W_slow)
 
-        weights = np.cumsum(weights /np.sum(weights)) #smooth weights
-
+        cumulative = np.cumsum(weights / np.sum(weights))
+        p_random = max(0, 1 - self.W_fast / self.W_slow)
         print("w_avg:", w_avg, "W_fast:", self.W_fast, "W_slow:", self.W_slow,
-              "p_random:", max(0, 1-self.W_fast/self.W_slow))
-        
-        #redraw sample
-        random_noise = np.random.rand(self.M) < max(0, 1- self.W_fast/self.W_slow)
+              "p_random:", p_random)
+
+        random_noise = np.random.rand(self.M) < p_random
         picks = np.random.rand(self.M)
-        indices = np.searchsorted(weights, picks)
+        indices = np.searchsorted(cumulative, picks)
 
-        #add random noise with propability p or redraw particle
-        new_particles = [
-            self.sample_from_measurement(z, m) if random_noise[i] else self.copy_particle(particles[indices[i]]) for i in range(self.M)]
+        # The scalar implementation copies the selected Particle including
+        # its UNNORMALIZED measurement weight. Preserve that behavior here.
+        resampled_poses = poses[indices].copy()
+        resampled_weights = weights[indices].copy()
+        for i in np.flatnonzero(random_noise):
+            replacement = self.sample_from_measurement(z, m)
+            # Preserve the original failure behavior for absent landmark IDs.
+            if replacement is None:
+                raise ValueError("sensor-reset had no known landmark to sample from")
+            resampled_poses[i] = (replacement.getX(), replacement.getY(),
+                                  replacement.getTheta())
+            resampled_weights[i] = replacement.getWeight()
 
-        #set new belief distribution
-        self.particles = np.array(new_particles)
+        self.particles = np.array([
+            pcl.Particle(x, y, theta, weight)
+            for (x, y, theta), weight in zip(resampled_poses, resampled_weights)
+        ])
         return
-    
+
     def estimate_pose(self, particles = None):
         "return estimate of pose as average of particles, or given particle list"
         if particles is None:
@@ -356,6 +491,11 @@ class MCL:
             mcl.mcl(u,z,global_map)
         else: #TODO look at this
             if u[0] != 0.0 or u[1] != 0.0: # without a move or a measurement nothing changed (and the motion model adds noise for u = 0)
-                mcl.particles = np.array([mcl.sample_motion_model_with_map(u, x_last, global_map) for x_last in mcl.particles])
-            for p in mcl.particles:
-                p.setWeight(1.0/NUM_PARTICLES)
+                poses = mcl._sample_motion_batch(u, global_map)
+                mcl.particles = np.array([
+                    pcl.Particle(x, y, theta, 1.0 / NUM_PARTICLES)
+                    for x, y, theta in poses
+                ])
+            else:
+                for p in mcl.particles:
+                    p.setWeight(1.0 / NUM_PARTICLES)

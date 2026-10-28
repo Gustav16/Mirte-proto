@@ -79,7 +79,7 @@ def drive_forward(distance, mirte, in_meters=False) -> float: #TODO make use of 
 
         time.sleep(0.05)
 
-    return drive_time, True
+    return distance, True
 
 
 def Execute_path(path, pose, mirte, mcl, local_landmarks, local_obstacles, landmarks, map, global_map, target, target_run, global_plan = False) -> bool:
@@ -134,7 +134,7 @@ def Execute_path(path, pose, mirte, mcl, local_landmarks, local_obstacles, landm
         dist_driven, can_safely_drive = drive_forward(distance, mirte, in_meters= True)
         if not can_safely_drive:
             #if close to mirte
-            if (distance - dist_driven) > 30 or point is not list_path[-1]:
+            if (distance - dist_driven) > 0.30 or point is not list_path[-1]:
                 return False
 
         #get_observations
@@ -144,7 +144,7 @@ def Execute_path(path, pose, mirte, mcl, local_landmarks, local_obstacles, landm
         cam.print_observations(new_z, new_local_landmarks, new_local_obstacles)
 
         #update mcl
-        u = [dist_driven, turned]
+        u = [dist_driven * 100.0, turned]
         print(f"Distance driven: {dist_driven}, distance turned: {turned}")
         MCL.update_mcl(mcl, u, new_z, global_map, len(mcl.particles))
        

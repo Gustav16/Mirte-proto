@@ -9,6 +9,8 @@ RRT_EXPAND_DIS = 40    # cm
 RRT_MAP_MARGIN = 0.5    # m, free space around start, goal and boxes for the RRT samples
 RRT_TRIES = 5
 
+MAX_SEGMENT_LEN = 200 # cm, take a picture at least this often while driving
+
 ### planning methods ###
 
 def rrt_plan(pos, m, goal, local_plan) -> list[list[float, float]]| None: #TODO
@@ -28,7 +30,7 @@ def rrt_plan(pos, m, goal, local_plan) -> list[list[float, float]]| None: #TODO
                 expand_dis=RRT_EXPAND_DIS, path_resolution=RRT_PATH_RES)
         path = rrt.planning(animation=False)
         if path is not None:
-            return simplify_path(path, rrt)
+             return split_long_segments(simplify_path(path, rrt), MAX_SEGMENT_LEN)
     #path could not be found so reseting map area if local plan
     if local_plan:
         m.map_area = area
@@ -91,3 +93,17 @@ def should_replan(landmarks, obstales, new_landmarks, new_obstacles, map, curr_p
                         continue
                 return True
     return False
+
+
+def split_long_segments(path, max_seg) -> list:
+    """Split every segment longer than max_seg into equal parts. Path is goal first, as rrt_plan returns it."""
+    points = [np.asarray(p, dtype=float) for p in reversed(path)] #start first
+    new_path = [points[0]]
+    for p in points[1:]:
+        last = new_path[-1]
+        n = int(np.ceil(np.linalg.norm(p - last) / max_seg))
+        for k in range(1, n + 1):
+            new_path.append(last + (p - last) * k / n)
+    new_path.reverse()
+    return new_path
+

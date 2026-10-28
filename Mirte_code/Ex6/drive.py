@@ -147,6 +147,9 @@ def Execute_path(path, pose, mirte, mcl, local_landmarks, local_obstacles, landm
         u = [dist_driven, turned]
         print(f"Distance driven: {dist_driven}, distance turned: {turned}")
         MCL.update_mcl(mcl, u, new_z, global_map, len(mcl.particles))
+       
+        
+        return False
         
         #replan check
         replan = should_replan(local_landmarks, local_obstacles, new_local_landmarks, new_local_obstacles, map, current_pose, target, global_plan)
@@ -159,6 +162,6 @@ def Execute_path(path, pose, mirte, mcl, local_landmarks, local_obstacles, landm
         current_pose[0] = point[0]
         current_pose[1] = point[1]
     #whether we did random exploration or if we are drivng towards the target
-    if target_run:
-        return True
-    return False
+        if target_run:
+            return True
+        return False

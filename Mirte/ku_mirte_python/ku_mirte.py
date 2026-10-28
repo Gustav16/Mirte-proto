@@ -237,7 +237,7 @@ class KU_Mirte:
         #rclpy.spin_once(self.camera_sub)
         return self.camera_sub.image()
 
-    #added ourself
+    #added ourselves
     def get_next_image(self) -> np.ndarray: #TODO check this works
         """Wait for and return the next camera image."""
         old_image = self.camera_sub.image()

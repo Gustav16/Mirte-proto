@@ -276,9 +276,9 @@ class MCL:
             count = len(pending)
             if stationary:
                 # pcl.add_uncertainty: independent x/y/theta Gaussian noise.
-                x = old[:, 0] + 5.0 * np.random.randn(count)
-                y = old[:, 1] + 5.0 * np.random.randn(count)
-                theta = np.mod(old[:, 2] + 0.1745 * np.random.randn(count),
+                x = old[:, 0] + 3.0 * np.random.randn(count)
+                y = old[:, 1] + 3.0 * np.random.randn(count)
+                theta = np.mod(old[:, 2] + 0.1045 * np.random.randn(count),
                                2.0 * np.pi)
             else:
                 # Exact rotate-then-translate motion-model equations.

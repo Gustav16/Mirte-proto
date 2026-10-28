@@ -44,7 +44,8 @@ def Execute_path(path, pose, mirte, mcl, local_landmarks, local_obstacles, landm
     current_pose = np.array(pose, dtype=float).copy()
     u = [0.0, 0.0]
     #TODO be aware i changed from path.revsere() to this, that could make trouble
-    for point in list(reversed(path))[1:]:
+    points = list(reversed(path))[1:]
+    for i, point in enumerate(points):
         dx = point[0] - current_pose[0]
         dy = point[1] - current_pose[1]
 
@@ -88,6 +89,7 @@ def Execute_path(path, pose, mirte, mcl, local_landmarks, local_obstacles, landm
 
         #TODO add obstavle avoince during drive with sonar
         dist_driven = drive_foward(distance, mirte, in_meters= True)
+        print(f"Distance driven: {dist_driven}")
 
         #get_observations
         new_z, new_local_landmarks, new_local_obstacles = cam.get_observations(landmarks, mirte)
@@ -99,6 +101,9 @@ def Execute_path(path, pose, mirte, mcl, local_landmarks, local_obstacles, landm
         u = [dist_driven, turned]
         print(f"Distance driven: {dist_driven}, distance turned: {turned}")
         MCL.update_mcl(mcl, u, new_z, global_map, len(mcl.particles))
+       
+        
+        return False
         
         #replan check
         replan = should_replan(local_landmarks, local_obstacles, new_local_landmarks, new_local_obstacles, map, current_pose, target, global_plan)
@@ -111,6 +116,6 @@ def Execute_path(path, pose, mirte, mcl, local_landmarks, local_obstacles, landm
         current_pose[0] = point[0]
         current_pose[1] = point[1]
     #whether we did random exploration or if we are drivng towards the target
-    if target_run:
-        return True
-    return False
+        if target_run:
+            return True
+        return False

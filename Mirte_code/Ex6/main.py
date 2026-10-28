@@ -98,6 +98,7 @@ turns = 0
 SCAN_STEP = np.radians(30)
 MAX_TURNS = (np.radians(360)//SCAN_STEP) - 2
 
+
 ### Method for reseting turning varibles ###
 def reset_turn_variables() -> None:
     "method for reseting varibles used in turning scheme"
@@ -214,6 +215,7 @@ while target_stack or target:
 
         while path is None:
             path = planning.rrt_plan([0,0, 0.0], Local_MAP, goal, True)
+            
             #could mirte find a proper plan with current goal or should it be updated
             if path is None:#TODO update goal
                 #update goal with some random setting in vacinity

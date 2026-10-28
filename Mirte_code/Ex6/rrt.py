@@ -20,6 +20,9 @@ import os
 from ku_mirte import KU_Mirte
 import grid_occ, robot_models, local_map
 
+
+MAX_DRIVE_DIST = 2.0
+
 class RRT:
     """
     Class for RRT planning
@@ -176,6 +179,9 @@ class RRT:
         plt.pause(0.01)
 
 
+
+
+
     @staticmethod
     def get_nearest_node_index(node_list, rnd_node):
         dlist = [ node.calc_distance_to(rnd_node)
@@ -199,50 +205,6 @@ sys.path.append(
         '../../../Mirte/ku_mirte_python'
     )
 )
-
-
-
-def Execute_path(path, pose, mirte):
-    path.reverse()
-    current_pose = np.array(pose, dtype=float).copy()
-
-    linear_offset = -0.0354
-    linear_speed = 0.3
-    angular_speed = 0.7
-
-    for point in path[1:]:
-        dx = point[0] - current_pose[0]
-        dy = point[1] - current_pose[1]
-
-        distance = np.linalg.norm(np.array([dx, dy]) / 100)
-
-        if distance <= 1e-6:
-            continue
-
-        target_theta = np.arctan2(dy, dx)
-
-        dtheta = target_theta - current_pose[2]
-        dtheta = np.arctan2(np.sin(dtheta), np.cos(dtheta))
-
-        if abs(dtheta) > 1e-6:
-            scaler = 1.05 if dtheta > 0 else 1.10
-
-            mirte.drive(
-                0.0,
-                np.sign(dtheta) * angular_speed,
-                scaler * abs(dtheta) / angular_speed
-            )
-
-        mirte.drive(
-            linear_speed,
-            linear_offset,
-            distance / linear_speed
-        )
-
-        # Update predicted pose without modifying the input pose.
-        current_pose[0] = point[0]
-        current_pose[1] = point[1]
-        current_pose[2] = np.mod(target_theta, 2.0 * np.pi)
 
 
 def simplify_path(path, rrt):

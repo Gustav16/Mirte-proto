@@ -427,6 +427,7 @@ while target_stack or target:
         u_pending = [0.0, -SCAN_STEP]
 
     else:
+        print("Trying to explore random path")
         if not has_turned_random_exploration:
             angle = np.random.uniform(-np.pi, np.pi)
             turned = drive.turn(angle, mirte)

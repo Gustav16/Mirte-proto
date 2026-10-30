@@ -1,7 +1,6 @@
 #import packages
 import local_map
 from mcl import MCL
-import mcl; print(mcl.__file__)
 import particle as pcl
 import camera as cam
 import numpy as np
@@ -9,7 +8,6 @@ import time
 import drive
 import planning
 import mirte_visualizer as vis
-import drive
 
 from ku_mirte import KU_Mirte
 #init landmark
@@ -45,7 +43,7 @@ target_stack = Target.create_target_stack([landmarkIDs[0],landmarkIDs[3],landmar
 #init map
 LANDMARK_RADIUS = 20
 global_map = local_map.LocalMap(low=(-120.0, -120.0),
-        high=(420.0, 520.0), landmark_radius=LANDMARK_RADIUS,
+        high=(520.0, 420.0), landmark_radius=LANDMARK_RADIUS,
                 mirte_radius=22) #TODO update local map so it can set radius for different landmarks
 
 Local_MAP = None
@@ -82,11 +80,9 @@ Y_VAR_ERR = 25**2  #reduced from 30 to 25
 THETA_VAR_ERR = np.radians(15)**2 #reduced from 20 to 15
 
 
-#RRT init 
-RRT_PATH_RES = 10      # cm
-RRT_EXPAND_DIS = 40    # cm
-RRT_MAP_MARGIN = 0.5    # m, free space around start, goal and boxes for the RRT samples
-RRT_TRIES = 5
+#goal update constants
+MAX_GOAL_ATTEMPTS = 10
+GOAL_SEARCH_STEP = 20 # cm moved along the circle around the target per step
 
 #Turn variables
 HAS_TURNED_LEFT = False
@@ -216,16 +212,25 @@ while target_stack or target:
         target_run = z[target.id][0] <= 200
 
         path = None
+        target_pos = np.array(local_landmarks[target.id])
+        goal_offset = np.array(goal) - target_pos #vector from target to the original goal
+        goal_radius = np.linalg.norm(goal_offset)
+        attempts = 0
 
-        while path is None:
-            path = planning.rrt_plan([0,0, 0.0], Local_MAP, goal, True)
+        while path is None and attempts < MAX_GOAL_ATTEMPTS:
+
+            if not Local_MAP.in_collision(goal): # Check if goal is inside obstacle
+                path = planning.rrt_plan([0,0, 0.0], Local_MAP, goal, True) # If not do rrt planning
             
-            #could mirte find a proper plan with current goal or should it be updated
-            if path is None:#TODO update goal
-                #update goal with some random setting in vacinity
+            if path is None: # If not path is found update goal
+                attempts += 1
                 print('could not find path, so trying with goal in nearby vacinity')
                 target_run = False
-                goal = goal
+                step = (attempts + 1) // 2 * (1 if attempts % 2 else -1) # Calculate step: 1, -1, 2, -2, 3, -3...
+                angle = step * GOAL_SEARCH_STEP / goal_radius # Calculate angle if vector 
+                rotation = np.array([[np.cos(angle), -np.sin(angle)],
+                                     [np.sin(angle),  np.cos(angle)]]) # Rotate vector
+                goal = target_pos + rotation @ goal_offset # Update goal
 
 
         reached_target = drive.Execute_path(path, 
@@ -249,6 +254,7 @@ while target_stack or target:
                 raise ValueError('target has not been set to None')
         u_pending = [0.0, 0.0]
         continue
+
     elif drive.obstacle_avoidance_front(mirte) and  (not drive.obstacle_avoidance_rear(mirte)): # if somthing in front of mirte
         dist_driven,_ = drive.drive_backward(drive.BACKSTEP_SIZE, mirte, in_meters= True) #try to drive backwards 40 cm
         u_pending = [-dist_driven*100, 0.0] #set control action for update

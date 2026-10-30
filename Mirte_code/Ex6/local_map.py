@@ -107,7 +107,7 @@ class LocalMap:
         obstacles = None,
         landmark_radius=20,
         mirte_radius=22,
-        obstacale_radius = 20,
+        obstacale_radius = 30,
         camera_offset=CAMERA_OFFSET_FROM_ROBOT_CENTER,
         low=(-2.0, 0.0),
         high=(2.0, 3.0),

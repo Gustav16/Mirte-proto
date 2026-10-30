@@ -214,18 +214,6 @@ while target_stack or target:
 
         target_run = not goal_out_of_reach
 
-        len = goal_len/ dist
-        goal = (local_landmarks[target.id][0]*len,local_landmarks[target.id][1]*len)
-
-        #TODO init this
-        target_run = z[target.id][0] <= 200
-
-        path = None
-        target_pos = np.array(local_landmarks[target.id])
-        goal_offset = np.array(goal) - target_pos #vector from target to the original goal
-        goal_radius = np.linalg.norm(goal_offset)
-        attempts = 0
-
         path = None
         target_pos = np.array(local_landmarks[target.id])
 

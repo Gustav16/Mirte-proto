@@ -8,11 +8,16 @@ import time
 import drive
 import planning
 import mirte_visualizer as vis
+import sys
 
 from ku_mirte import KU_Mirte
 #init landmark
-landmarkIDs = [6,11,3,9]
 
+
+TESTING = "testing" in sys.argv
+
+
+landmarkIDs = [6,11,3,9]
 
 #init landmarks
 landmarks = {
@@ -55,8 +60,11 @@ global_map.landmarks = [[list(landmarks[ID]), 20.0 + 40.0, ID] for ID in landmar
 
 # VISUALIZER
 
-vis.start(globals(), period=5.0, web=True)
+if TESTING:
+    vis.start(globals(), period=5.0, web=True)
 
+
+    
 VALID_RANGE = 40
 SUCCESS__RANGE = LANDMARK_RADIUS + VALID_RANGE
 
@@ -154,7 +162,9 @@ def has_reached_target(target, z, est_pose, has_converged) -> bool: #TODO should
 u_pending = [0.0, 0.0]
 z = {}
 seen_landmark_ids = {}
-seen_obstacle_ids = {}
+seen_obstacles = {}
+#ID
+ID_LIFETIME = 3
 
 #while stack run or target run the loop
 while target_stack or target:
@@ -186,6 +196,23 @@ while target_stack or target:
     print(f"estimated pose: X = {est_pose.getX()}, Y = {est_pose.getY()}, Theta = {est_pose.getTheta()}\nConvergence: {has_converged}")
 
     #guess_conversion =  guess_conversion_func(last_usefull_landmarkid, control_actions, local_landmarks, local_obstacles)
+    if has_converged:
+        for id, (x, y) in local_obstacles.items()
+            #update with new seen
+            seen_obstacles[id] = [np.array([
+                est_pose.getX() + y * np.cos(est_pose.getTheta()) + x * np.sin(est_pose.getTheta()),
+                est_pose.getY() + y * np.sin(est_pose.getTheta()) - x * np.cos(est_pose.getTheta())
+            ]), ID_LIFETIME]
+
+
+    for id in seen_obstacles:
+        pos, remaining =seen_obstacles[id]
+        if seen_obstacles[id] == 0:
+            del seen_obstacles[id]
+        else:
+            seen_obstacles[id][1] -= 1
+
+            
 
     #have the mirte reached the target?
     reached_target = has_reached_target(target, z, est_pose, has_converged)
@@ -294,17 +321,9 @@ while target_stack or target:
         #update the local obstacles to gloabal obstacles
         temp_global_map = global_map.Copy()
 
-        temp_global_map.obstacles = [( np.array([
-            est_pose.getX() + y * np.cos(est_pose.getTheta()) + x * np.sin(est_pose.getTheta()),
-            est_pose.getY() + y * np.sin(est_pose.getTheta()) - x * np.cos(est_pose.getTheta())
+        #seen_obstacles already holds global positions, so no transform is needed
+        temp_global_map.obstacles = [(pos, id) for id, (pos, remaining) in seen_obstacles.items()]
 
-            #est_pose.getX() + x * np.cos(est_pose.getTheta()) - y * np.sin(est_pose.getTheta()),
-            #est_pose.getY() + x * np.sin(est_pose.getTheta()) + y * np.cos(est_pose.getTheta())
-            ]),
-            id
-        )
-        for id, (x, y) in local_obstacles.items()
-]
         target_pos = np.array(landmarks[target.id])
 
         delta = target_pos - np.array([est_pose.getX(), est_pose.getY()])

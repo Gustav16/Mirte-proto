@@ -94,6 +94,8 @@ has_turned_random_exploration = False
 SCAN_STEP = np.radians(25)
 MAX_TURNS = (np.radians(360)//SCAN_STEP) - 2
 
+SIDE_STEP = 60 #cm
+
 
 ### Method for reseting turning varibles ###
 def reset_turn_variables() -> None:
@@ -287,39 +289,52 @@ while target_stack or target:
         delta = target_pos - np.array([est_pose.getX(), est_pose.getY()])
 
         dist = np.linalg.norm(delta)
-        max_dist = min(dist, 201)
-        goal_len = min(abs(max_dist - 60), abs(max_dist -30) ) if dist <= 200 else max_dist
-        length = goal_len/ dist
+
+        goal_out_of_reach = dist > 200
+        goal_len = min(abs(dist - 60), abs(dist - 30)) if not goal_out_of_reach else min(200, dist - 60)
+        length = goal_len / dist
 
         goal = np.array([est_pose.getX(), est_pose.getY()]) + delta * length
 
-        target_run = False
 
-        path = None
-        goal_offset = np.array(goal) - target_pos #vector from target to the original goal
-        goal_radius = np.linalg.norm(goal_offset)
-        attempts = 0
+        if goal_out_of_reach:
+            path = None
+            direction = delta / dist #unit vector from mirte towards the target
+            right = np.array([direction[1], -direction[0]]) #unit vector 90 degrees to the right of the driving direction
+
+            for candidate in [goal, goal + SIDE_STEP * right, goal - SIDE_STEP * right]:
+                if not temp_global_map.in_collision(candidate): #only run rrt if the goal is not inside an obstacle
+                    path = planning.rrt_plan([est_pose.getX(), est_pose.getY()], temp_global_map, candidate, False)
+                if path is not None:
+                    goal = candidate
+                    break
+                print('could not find global path, so trying with goal 60 cm to the side')
 
 
+        else:
+            path = None
+            goal_offset = np.array(goal) - target_pos #vector from target to the original goal
+            goal_radius = np.linalg.norm(goal_offset)
+            attempts = 0
 
-        while path is None and attempts < MAX_GOAL_ATTEMPTS:
-            path = planning.rrt_plan([est_pose.getX(), est_pose.getY()], temp_global_map, goal, False)
+            while path is None and attempts < MAX_GOAL_ATTEMPTS:
+                path = planning.rrt_plan([est_pose.getX(), est_pose.getY()], temp_global_map, goal, False)
 
 
-            if not temp_global_map.in_collision(goal): # Check if goal is inside obstacle
-                path = planning.rrt_plan([est_pose.getX(), est_pose.getY()], temp_global_map, goal, False) # If not do rrt planning
-            
-            
-            if path is None:
-                #update goal with some random setting in vacinity
-                print('could not find local path, so trying with goal in nearby vacinity')
-                attempts += 1
-                print('could not find global path, so trying with goal in nearby vacinity')
-                step = (attempts + 1) // 2 * (1 if attempts % 2 else -1) # Calculate step: 1, -1, 2, -2, 3, -3...
-                angle = step * GOAL_SEARCH_STEP / goal_radius # Calculate angle of vector 
-                rotation = np.array([[np.cos(angle), -np.sin(angle)],
-                                     [np.sin(angle),  np.cos(angle)]]) # Rotate vector
-                goal = target_pos + rotation @ goal_offset # Update goal
+                if not temp_global_map.in_collision(goal): # Check if goal is inside obstacle
+                    path = planning.rrt_plan([est_pose.getX(), est_pose.getY()], temp_global_map, goal, False) # If not do rrt planning
+                
+                
+                if path is None:
+                    #update goal with some random setting in vacinity
+                    print('could not find local path, so trying with goal in nearby vacinity')
+                    attempts += 1
+                    print('could not find global path, so trying with goal in nearby vacinity')
+                    step = (attempts + 1) // 2 * (1 if attempts % 2 else -1) # Calculate step: 1, -1, 2, -2, 3, -3...
+                    angle = step * GOAL_SEARCH_STEP / goal_radius # Calculate angle of vector 
+                    rotation = np.array([[np.cos(angle), -np.sin(angle)],
+                                        [np.sin(angle),  np.cos(angle)]]) # Rotate vector
+                    goal = target_pos + rotation @ goal_offset # Update goal
 
         reached_target = False
         if path is None:
@@ -335,7 +350,7 @@ while target_stack or target:
                                         temp_global_map, 
                                         global_map,
                                         target, 
-                                        True, 
+                                        False, 
                                         True)
         #reset global obstacles
         reset_turn_variables()

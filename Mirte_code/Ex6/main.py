@@ -235,7 +235,7 @@ while target_stack or target:
 
         goal_out_of_reach = dist > 200
         Local_MAP = planning.create_local_map(local_landmarks, local_obstacles, min(dist, 200), previous_target, target)
-        goal_len = min(abs(dist - 60), abs(dist - 30)) if not goal_out_of_reach else min(200, dist - 60)
+        goal_len = min(abs(dist - 50), abs(dist - 30)) if not goal_out_of_reach else min(200, dist - 50)
         scale = goal_len / dist
         goal = (local_landmarks[target.id][0]*scale, local_landmarks[target.id][1]*scale)
 
@@ -331,7 +331,7 @@ while target_stack or target:
         dist = np.linalg.norm(delta)
 
         goal_out_of_reach = dist > 200
-        goal_len = min(abs(dist - 60), abs(dist - 30)) if not goal_out_of_reach else min(200, dist - 60)
+        goal_len = min(abs(dist - 50), abs(dist - 30)) if not goal_out_of_reach else min(200, dist - 50)
         length = goal_len / dist
 
         goal = np.array([est_pose.getX(), est_pose.getY()]) + delta * length
@@ -358,8 +358,6 @@ while target_stack or target:
             attempts = 0
 
             while path is None and attempts < MAX_GOAL_ATTEMPTS:
-                path = planning.rrt_plan([est_pose.getX(), est_pose.getY()], temp_global_map, goal, False)
-
 
                 if not temp_global_map.in_collision(goal): # Check if goal is inside obstacle
                     path = planning.rrt_plan([est_pose.getX(), est_pose.getY()], temp_global_map, goal, False) # If not do rrt planning

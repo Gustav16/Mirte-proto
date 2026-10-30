@@ -14,7 +14,7 @@ ANGULAR_SPEED = 0.7
 LEFT_TRUN_SCALER = 1.05 
 RIGHT_TRUN_SCALER = 1.1
 SAFE_DISTANCE_BOTH = 0.4 #if both go off then ahead of/behind mirte 
-SAFE_DISTANCE_ONE = 0.35 #if one go off then at diagonal of mirte 
+SAFE_DISTANCE_ONE = 0.4 #if one go off then at diagonal of mirte 
 BACKSTEP_SIZE = 0.4 #m
 DRIVE_TIME_OFFSET = 0.2 #offset slept in KU_MIRTE drive method
 #### DRIVING METHODS ####

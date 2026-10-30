@@ -219,8 +219,8 @@ while target_stack or target:
 
         while path is None and attempts < MAX_GOAL_ATTEMPTS:
 
-            if not Local_MAP.in_collision(goal): # Check if goal is inside obstacle
-                path = planning.rrt_plan([0,0, 0.0], Local_MAP, goal, True) # If not do rrt planning
+            #if not Local_MAP.in_collision(goal): # Check if goal is inside obstacle
+            path = planning.rrt_plan([0,0, 0.0], Local_MAP, goal, True) # If not do rrt planning
             
             if path is None: # If not path is found update goal
                 attempts += 1
@@ -321,21 +321,22 @@ while target_stack or target:
                                      [np.sin(angle),  np.cos(angle)]]) # Rotate vector
                 goal = target_pos + rotation @ goal_offset # Update goal
 
-
-
-
-        reached_target = drive.Execute_path(path, 
-                                      [est_pose.getX(), est_pose.getY(), est_pose.getTheta()], 
-                                      mirte, 
-                                      aug_mcl, 
-                                      local_landmarks, 
-                                      local_obstacles,
-                                      landmarks, 
-                                      temp_global_map, 
-                                      global_map,
-                                      target, 
-                                      True, 
-                                      True)
+        reached_target = False
+        if path is None:
+            print("Could not find any global path even with many goals")    
+        else:
+            reached_target = drive.Execute_path(path, 
+                                        [est_pose.getX(), est_pose.getY(), est_pose.getTheta()], 
+                                        mirte, 
+                                        aug_mcl, 
+                                        local_landmarks, 
+                                        local_obstacles,
+                                        landmarks, 
+                                        temp_global_map, 
+                                        global_map,
+                                        target, 
+                                        True, 
+                                        True)
         #reset global obstacles
         reset_turn_variables()
         if reached_target:

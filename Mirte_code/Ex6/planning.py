@@ -18,6 +18,8 @@ def rrt_plan(pos, m, goal, local_plan) -> list[list[float, float]] | None:
     start = np.array([pos[0], pos[1]])
     goal = np.array(goal)
 
+    
+
     # Same LocalMap as Ex4 (box radius 0.20 m + MIRTE radius 0.22 m), the boxes as landmarks in the world frame
     robot = robot_models.PointMassModel(ctrl_range=[-RRT_PATH_RES, RRT_PATH_RES])
 
@@ -31,6 +33,9 @@ def rrt_plan(pos, m, goal, local_plan) -> list[list[float, float]] | None:
                 np.asarray(bound, dtype=float) * size_array[i]
                 for bound in area
             ]
+        if m.in_collision(goal): 
+            continue
+
 
         rrt = RRT(
             start=start,

@@ -282,7 +282,7 @@ while target_stack or target:
         )
         for id, (x, y) in local_obstacles.items()
 ]
-        target_pos = list(landmarks[target.id])
+        target_pos = np.array(landmarks[target.id])
 
         delta = target_pos - np.array([est_pose.getX(), est_pose.getY()])
 
@@ -296,7 +296,6 @@ while target_stack or target:
         target_run = False
 
         path = None
-        target_pos = np.array(local_landmarks[target.id])
         goal_offset = np.array(goal) - target_pos #vector from target to the original goal
         goal_radius = np.linalg.norm(goal_offset)
         attempts = 0

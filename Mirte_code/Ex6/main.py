@@ -89,6 +89,7 @@ HAS_TURNED_LEFT = False
 HAS_TURNED_RIGHT = False
 turns = 0
 has_turned_random_exploration = False
+could_not_reach_global_landmark = False
 
 #max turn constant
 SCAN_STEP = np.radians(25)
@@ -100,12 +101,13 @@ SIDE_STEP = 60 #cm
 ### Method for reseting turning varibles ###
 def reset_turn_variables() -> None:
     "method for reseting varibles used in turning scheme"
-    global HAS_TURNED_LEFT, HAS_TURNED_RIGHT, turns, has_turned_random_exploration
+    global HAS_TURNED_LEFT, HAS_TURNED_RIGHT, turns, has_turned_random_exploration, could_not_reach_global_landmark
 
     HAS_TURNED_LEFT = False
     HAS_TURNED_RIGHT = False
     turns = 0
     has_turned_random_exploration = False
+    could_not_reach_global_landmark = False
 
 
 ### Methods for setting and updating target ###
@@ -204,9 +206,14 @@ while target_stack or target:
         dist = z[target.id][0]
         print(f"Target: {target.id} seen at distance {dist}. Creating local path")
 
-        max_dist = min(dist, 201)
-        Local_MAP = planning.create_local_map(local_landmarks, local_obstacles, max_dist, previous_target, target)
-        goal_len = min(abs(max_dist - 60), abs(max_dist -30) ) if dist <= 200 else max_dist
+        goal_out_of_reach = dist > 200
+        Local_MAP = planning.create_local_map(local_landmarks, local_obstacles, min(dist, 200), previous_target, target)
+        goal_len = min(abs(dist - 60), abs(dist - 30)) if not goal_out_of_reach else min(200, dist - 60)
+        scale = goal_len / dist
+        goal = (local_landmarks[target.id][0]*scale, local_landmarks[target.id][1]*scale)
+
+        target_run = not goal_out_of_reach
+
         len = goal_len/ dist
         goal = (local_landmarks[target.id][0]*len,local_landmarks[target.id][1]*len)
 
@@ -219,19 +226,45 @@ while target_stack or target:
         goal_radius = np.linalg.norm(goal_offset)
         attempts = 0
 
-        while path is None and attempts < MAX_GOAL_ATTEMPTS:
+        path = None
+        target_pos = np.array(local_landmarks[target.id])
 
-            #if not Local_MAP.in_collision(goal): # Check if goal is inside obstacle
-            path = planning.rrt_plan([0,0, 0.0], Local_MAP, goal, True) # If not do rrt planning
-            
-            if path is None: # If not path is found update goal
-                attempts += 1
-                print('could not find path, so trying with goal in nearby vacinity')
-                step = (attempts + 1) // 2 * (1 if attempts % 2 else -1) # Calculate step: 1, -1, 2, -2, 3, -3...
-                angle = step * GOAL_SEARCH_STEP / goal_radius # Calculate angle of vector 
-                rotation = np.array([[np.cos(angle), -np.sin(angle)],
-                                     [np.sin(angle),  np.cos(angle)]]) # Rotate vector
-                goal = target_pos + rotation @ goal_offset # Update goal
+        if goal_out_of_reach: #goal is a point on the way to the target, so try the goal and then 60 cm to each side
+            direction = target_pos / dist #unit vector from mirte towards the target, mirte is at (0, 0)
+            right = np.array([direction[1], -direction[0]]) #unit vector 90 degrees to the right of the driving direction
+
+            for candidate in [np.array(goal), goal + SIDE_STEP * right, goal - SIDE_STEP * right]:
+                if not Local_MAP.in_collision(candidate): #only run rrt if the goal is not inside an obstacle
+                    path = planning.rrt_plan([0,0, 0.0], Local_MAP, candidate, True)
+                if path is not None:
+                    break
+                print('could not find local path, so trying with goal 60 cm to the side')
+
+        else: #goal is near the target, so move it along the circle around the target
+            goal_offset = np.array(goal) - target_pos
+            goal_radius = np.linalg.norm(goal_offset)
+            attempts = 0
+
+            while path is None and attempts < MAX_GOAL_ATTEMPTS:
+                if not Local_MAP.in_collision(goal):
+                    path = planning.rrt_plan([0,0, 0.0], Local_MAP, goal, True)
+
+                if path is None:
+                    attempts += 1
+                    target_run = False
+                    print('could not find local path, so trying with goal in nearby vacinity')
+                    step = (attempts + 1) // 2 * (1 if attempts % 2 else -1)
+                    angle = step * GOAL_SEARCH_STEP / goal_radius
+                    rotation = np.array([[np.cos(angle), -np.sin(angle)],
+                                         [np.sin(angle),  np.cos(angle)]])
+                    goal = target_pos + rotation @ goal_offset
+
+        if path is None: #no goal could be reached, so back up and look again
+            print('could not find any local path, backing up')
+            dist_driven, _ = drive.drive_backward(drive.BACKSTEP_SIZE, mirte, in_meters=True)
+            u_pending = [-dist_driven*100, 0.0]
+            reset_turn_variables()
+            continue
 
 
         reached_target = drive.Execute_path(path, 
@@ -260,7 +293,7 @@ while target_stack or target:
         dist_driven,_ = drive.drive_backward(drive.BACKSTEP_SIZE, mirte, in_meters= True) #try to drive backwards 40 cm
         u_pending = [-dist_driven*100, 0.0] #set control action for update
             
-    elif has_converged: #if the mirte has a good idea of estimated pose then create and excute a path plan to the target
+    elif has_converged and not could_not_reach_global_landmark: #if the mirte has a good idea of estimated pose then create and excute a path plan to the target
         #then do planning
         #TODO do presteps
 
@@ -338,7 +371,8 @@ while target_stack or target:
 
         reached_target = False
         if path is None:
-            print("Could not find any global path even with many goals")    
+            print("Could not find any global path even with many goals")
+            could_not_reach_global_landmark = True    
         else:
             reached_target = drive.Execute_path(path, 
                                         [est_pose.getX(), est_pose.getY(), est_pose.getTheta()], 
@@ -365,7 +399,7 @@ while target_stack or target:
         #we have now split the potential maps in half atleast, so do some action
         #pass
 
-    elif not (HAS_TURNED_LEFT and HAS_TURNED_RIGHT):
+    elif not (HAS_TURNED_LEFT and HAS_TURNED_RIGHT) and not has_converged:
         #left right step
         #turn 20 degrees to the left
         if not HAS_TURNED_LEFT:
@@ -380,7 +414,7 @@ while target_stack or target:
             u_pending = [0.0, -2*SCAN_STEP]
             continue
         raise ValueError('somthing went wrong in has turned left and has turned right')
-    elif turns <  MAX_TURNS: #mirte see anything, so scan in a circle to see if it gets bearings
+    elif turns <  MAX_TURNS and not has_converged: #mirte see anything, so scan in a circle to see if it gets bearings
         #360
         turns += 1
         #turn 20 degrees to the right

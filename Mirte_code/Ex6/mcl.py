@@ -10,7 +10,7 @@ class MCL:
     def __init__(self, 
                     prior,
                     # u is in cm and rad, so the alphas have units: variance = alpha * (cm or rad)^2
-                    alpha1 = 0.01,  # rotation noise from rotation [rad^2/rad^2]: turn std = 10% of the turn TODO tune
+                    alpha1 = 0.001,  # rotation noise from rotation [rad^2/rad^2]: turn std = 10% of the turn TODO tune
                     alpha2 = 3e-7,  # rotation noise from translation [rad^2/cm^2]: ~3 deg heading std per metre TODO tune
                     alpha3 = 0.0025, # translation noise from translation [cm^2/cm^2]: drive std = 5% of the distance TODO tune
                     alpha4 = 0.5,  # translation noise from rotation [cm^2/rad^2]: ~1 cm std for a 90 deg turn TODO tune

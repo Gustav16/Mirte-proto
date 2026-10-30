@@ -91,7 +91,7 @@ turns = 0
 has_turned_random_exploration = False
 
 #max turn constant
-SCAN_STEP = np.radians(30)
+SCAN_STEP = np.radians(25)
 MAX_TURNS = (np.radians(360)//SCAN_STEP) - 2
 
 
@@ -225,9 +225,8 @@ while target_stack or target:
             if path is None: # If not path is found update goal
                 attempts += 1
                 print('could not find path, so trying with goal in nearby vacinity')
-                target_run = False
                 step = (attempts + 1) // 2 * (1 if attempts % 2 else -1) # Calculate step: 1, -1, 2, -2, 3, -3...
-                angle = step * GOAL_SEARCH_STEP / goal_radius # Calculate angle if vector 
+                angle = step * GOAL_SEARCH_STEP / goal_radius # Calculate angle of vector 
                 rotation = np.array([[np.cos(angle), -np.sin(angle)],
                                      [np.sin(angle),  np.cos(angle)]]) # Rotate vector
                 goal = target_pos + rotation @ goal_offset # Update goal
@@ -263,6 +262,8 @@ while target_stack or target:
         #then do planning
         #TODO do presteps
 
+        print("Creating global path")
+
         #dist = z[target.id][0]
         #Local_MAP = planning.create_local_map(local_landmarks, local_obstacles, dist)
 
@@ -295,15 +296,34 @@ while target_stack or target:
         target_run = False
 
         path = None
+        target_pos = np.array(local_landmarks[target.id])
+        goal_offset = np.array(goal) - target_pos #vector from target to the original goal
+        goal_radius = np.linalg.norm(goal_offset)
+        attempts = 0
 
-        while path is None:
+
+
+        while path is None and attempts < MAX_GOAL_ATTEMPTS:
             path = planning.rrt_plan([est_pose.getX(), est_pose.getY()], temp_global_map, goal, False)
-            #could mirte find a proper plan with current goal or should it be updated
-            if path is None:#TODO update goal
+
+
+            if not temp_global_map.in_collision(goal): # Check if goal is inside obstacle
+                path = planning.rrt_plan([est_pose.getX(), est_pose.getY()], temp_global_map, goal, False) # If not do rrt planning
+            
+            
+            if path is None:
                 #update goal with some random setting in vacinity
-                print('could not find path, so trying with goal in nearby vacinity')
-                target_run = False
-                goal = goal
+                print('could not find local path, so trying with goal in nearby vacinity')
+                attempts += 1
+                print('could not find global path, so trying with goal in nearby vacinity')
+                step = (attempts + 1) // 2 * (1 if attempts % 2 else -1) # Calculate step: 1, -1, 2, -2, 3, -3...
+                angle = step * GOAL_SEARCH_STEP / goal_radius # Calculate angle of vector 
+                rotation = np.array([[np.cos(angle), -np.sin(angle)],
+                                     [np.sin(angle),  np.cos(angle)]]) # Rotate vector
+                goal = target_pos + rotation @ goal_offset # Update goal
+
+
+
 
         reached_target = drive.Execute_path(path, 
                                       [est_pose.getX(), est_pose.getY(), est_pose.getTheta()], 

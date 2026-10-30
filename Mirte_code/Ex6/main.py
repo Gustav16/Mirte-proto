@@ -432,12 +432,13 @@ while target_stack or target:
         if not has_turned_random_exploration:
             angle = np.random.uniform(-np.pi, np.pi)
             turned = drive.turn(angle, mirte)
+            print(f"Truned {turned} in random path exploration")
             has_turned_random_exploration = True
             u_pending = [0.0, turned]
             continue
 
-        Local_MAP = planning.create_local_map(local_landmarks, local_obstacles, 60, previous_target, target)
-        goal = (0.0, 60.0)
+        Local_MAP = planning.create_local_map(local_landmarks, local_obstacles, 100, previous_target, target)
+        goal = (0.0, 100.0)
         path = planning.rrt_plan([0, 0, 0.0], Local_MAP, goal, True)
 
         if path is not None:

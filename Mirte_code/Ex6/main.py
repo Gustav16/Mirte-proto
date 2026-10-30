@@ -11,7 +11,7 @@ import mirte_visualizer as vis
 
 from ku_mirte import KU_Mirte
 #init landmark
-landmarkIDs = [6,3,1,4]
+landmarkIDs = [6,11,3,9]
 
 
 #init landmarks

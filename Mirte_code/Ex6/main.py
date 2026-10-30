@@ -435,7 +435,7 @@ while target_stack or target:
             u_pending = [0.0, turned]
             continue
 
-        Local_MAP = planning.create_local_map(local_landmarks, local_obstacles, 150, previous_target, target)
+        Local_MAP = planning.create_local_map(local_landmarks, local_obstacles, 60, previous_target, target)
         goal = (0.0, 60.0)
         path = planning.rrt_plan([0, 0, 0.0], Local_MAP, goal, True)
 

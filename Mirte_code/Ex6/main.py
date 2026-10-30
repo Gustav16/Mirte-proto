@@ -61,6 +61,7 @@ global_map.landmarks = [[list(landmarks[ID]), 20.0 + 40.0, ID] for ID in landmar
 # VISUALIZER
 
 if TESTING:
+    print("visulizer actived")
     vis.start(globals(), period=5.0, web=True)
 
 

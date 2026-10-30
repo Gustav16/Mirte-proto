@@ -436,7 +436,7 @@ while target_stack or target:
             continue
 
         Local_MAP = planning.create_local_map(local_landmarks, local_obstacles, 150, previous_target, target)
-        goal = (0.0, 100.0)
+        goal = (0.0, 60.0)
         path = planning.rrt_plan([0, 0, 0.0], Local_MAP, goal, True)
 
         if path is not None:
@@ -454,7 +454,6 @@ while target_stack or target:
                                False)
         else:
             print('could not find exploration path')
-
         reset_turn_variables()
         u_pending = [0.0, 0.0]
 

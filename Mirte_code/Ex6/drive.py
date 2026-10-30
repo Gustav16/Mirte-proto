@@ -192,7 +192,8 @@ def Execute_path(path, pose, mirte, mcl, local_landmarks, local_obstacles, landm
         if not can_safely_drive:
             dist_forward = dist_driven
             #try to move back 40 cm if obstacle ahead
-            dist_driven -= drive_backward(BACKSTEP_SIZE, mirte, in_meters= True)
+            dist_driven_back,_ = drive_backward(BACKSTEP_SIZE, mirte, in_meters= True)
+            dist_driven -= dist_driven_back
             #if close and last point in path then we assume we reached a target obstacle
             if (distance - dist_forward) > 0.30 or point is not list_path[-1]:
                 #get obsercations

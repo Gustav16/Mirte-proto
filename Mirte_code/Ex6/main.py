@@ -249,8 +249,8 @@ while target_stack or target:
         u_pending = [0.0, 0.0]
         continue
     elif drive.obstacle_avoidance_front(mirte) and  (not drive.obstacle_avoidance_rear(mirte)): # if somthing in front of mirte
-        dist_driven = drive.drive_backward(drive.BACKSTEP_SIZE, mirte, in_meters= True)*100 #try to drive backwards 40 cm
-        u_pending = [-dist_driven, 0.0] #set control action for update
+        dist_driven,_ = drive.drive_backward(drive.BACKSTEP_SIZE, mirte, in_meters= True) #try to drive backwards 40 cm
+        u_pending = [-dist_driven*100, 0.0] #set control action for update
             
     elif has_converged: #if the mirte has a good idea of estimated pose then create and excute a path plan to the target
         #then do planning

@@ -11,8 +11,6 @@ import planning
 import mirte_visualizer as vis
 import drive
 
-
-
 from ku_mirte import KU_Mirte
 #init landmark
 landmarkIDs = [6,3,1,4]
@@ -94,6 +92,7 @@ RRT_TRIES = 5
 HAS_TURNED_LEFT = False
 HAS_TURNED_RIGHT = False
 turns = 0
+has_turned_random_exploration = False
 
 #max turn constant
 SCAN_STEP = np.radians(30)
@@ -103,11 +102,13 @@ MAX_TURNS = (np.radians(360)//SCAN_STEP) - 2
 ### Method for reseting turning varibles ###
 def reset_turn_variables() -> None:
     "method for reseting varibles used in turning scheme"
-    global HAS_TURNED_LEFT, HAS_TURNED_RIGHT, turns
+    global HAS_TURNED_LEFT, HAS_TURNED_RIGHT, turns, has_turned_random_exploration
 
     HAS_TURNED_LEFT = False
     HAS_TURNED_RIGHT = False
     turns = 0
+    has_turned_random_exploration = False
+
 
 ### Methods for setting and updating target ###
 def pop(target_stack, m) -> Target:
@@ -344,20 +345,41 @@ while target_stack or target:
         #turn 20 degrees to the right
         drive.turn(-SCAN_STEP, mirte)
         u_pending = [0.0, -SCAN_STEP]
-    else: #TODO #mirte could not gather anything from this position, do some random exploration in the close vacinity
-        #TODO add random exploration
-        #rember to add 90 degrres when executing local path
-        #random exploration
-        reset_turn_variables()
-        pass
 
+    else:
+        if not has_turned_random_exploration:
+            angle = np.random.uniform(-np.pi, np.pi)
+            turned = drive.turn(angle, mirte)
+            has_turned_random_exploration = True
+            u_pending = [0.0, turned]
+            continue
+
+        Local_MAP = planning.create_local_map(local_landmarks, local_obstacles, 150, previous_target, target)
+        goal = (0.0, 150.0)
+        path = planning.rrt_plan([0, 0, 0.0], Local_MAP, goal, True)
+
+        if path is not None:
+            drive.Execute_path(path,
+                               [0.0, 0.0, np.radians(90)], #we are looking foward in local planning so add 90 degrees
+                               mirte,
+                               aug_mcl,
+                               local_landmarks,
+                               local_obstacles,
+                               landmarks,
+                               Local_MAP,
+                               global_map,
+                               target,
+                               False,
+                               False)
+        else:
+            print('could not find exploration path')
+
+        reset_turn_variables()
+        u_pending = [0.0, 0.0]
 
     #can we see target?
-
-        #are there objects in the way?
-
+    #are there objects in the way?
     #can we see any landmarks?
-    
 print(f"No targets left, shutdown inbound")
     
 #done

@@ -197,7 +197,7 @@ while target_stack or target:
 
     #guess_conversion =  guess_conversion_func(last_usefull_landmarkid, control_actions, local_landmarks, local_obstacles)
     if has_converged:
-        for id, (x, y) in local_obstacles.items()
+        for id, (x, y) in local_obstacles.items():
             #update with new seen
             seen_obstacles[id] = [np.array([
                 est_pose.getX() + y * np.cos(est_pose.getTheta()) + x * np.sin(est_pose.getTheta()),

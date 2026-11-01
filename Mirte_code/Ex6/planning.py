@@ -55,6 +55,9 @@ def rrt_plan(pos, m, goal, local_plan) -> list[list[float, float]] | None:
                 m.map_area = area
 
             return result
+        #only do two tries for global map as it is bigger and takes longer
+        if i > 1 and not local_plan:
+            return None
 
     # Path could not be found, so reset map area if local plan
     if local_plan:

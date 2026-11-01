@@ -167,7 +167,7 @@ z = {}
 seen_landmark_ids = {}
 seen_obstacles = {}
 #ID
-ID_LIFETIME = 3
+ID_LIFETIME = 4 #increased from 3
 
 #while stack run or target run the loop
 while target_stack or target:

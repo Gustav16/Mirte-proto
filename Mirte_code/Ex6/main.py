@@ -367,7 +367,6 @@ while target_stack or target:
                 
                 if path is None:
                     #update goal with some random setting in vacinity
-                    print('could not find local path, so trying with goal in nearby vacinity')
                     attempts += 1
                     print('could not find global path, so trying with goal in nearby vacinity')
                     step = (attempts + 1) // 2 * (1 if attempts % 2 else -1) # Calculate step: 1, -1, 2, -2, 3, -3...
@@ -379,7 +378,9 @@ while target_stack or target:
         reached_target = False
         if path is None:
             print("Could not find any global path even with many goals")
-            could_not_reach_global_landmark = True    
+            could_not_reach_global_landmark = True 
+            u_pending = [0.0, 0.0]
+            continue   
         else:
             reached_target = drive.Execute_path(path, 
                                         [est_pose.getX(), est_pose.getY(), est_pose.getTheta()], 

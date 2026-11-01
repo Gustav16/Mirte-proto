@@ -46,7 +46,7 @@ previous_target = None
 target_stack = Target.create_target_stack([landmarkIDs[0],landmarkIDs[3],landmarkIDs[2],landmarkIDs[1], landmarkIDs[0]])
 
 #init map
-LANDMARK_RADIUS = 20
+LANDMARK_RADIUS = 25
 global_map = local_map.LocalMap(low=(-120.0, -120.0),
         high=(520.0, 420.0), landmark_radius=LANDMARK_RADIUS,
                 mirte_radius=22) #TODO update local map so it can set radius for different landmarks
@@ -67,6 +67,7 @@ if TESTING:
 
     
 VALID_RANGE = 40
+CAMERA_OFFSET_ALLOWENCE = 5
 SUCCESS__RANGE = LANDMARK_RADIUS + VALID_RANGE
 
 #number of particles 
@@ -86,7 +87,7 @@ time.sleep(0.4)
 #convergence constants
 X_VAR_ERR = 25**2 #reduced from 30 to 25
 Y_VAR_ERR = 25**2  #reduced from 30 to 25
-THETA_VAR_ERR = np.radians(15)**2 #reduced from 20 to 15
+THETA_VAR_ERR = np.radians(17)**2 #reduced from 20 to 15
 
 
 #goal update constants

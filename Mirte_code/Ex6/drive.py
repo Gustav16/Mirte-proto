@@ -17,6 +17,7 @@ SAFE_DISTANCE_BOTH = 0.4 #if both go off then ahead of/behind mirte
 SAFE_DISTANCE_ONE = 0.30 #if one go off then at diagonal of mirte 
 BACKSTEP_SIZE = 0.5 #m
 DRIVE_TIME_OFFSET = 0.2 #offset slept in KU_MIRTE drive method
+SENSOR_WAIT_TIME = 0.03 #reduced from 0.05
 #### DRIVING METHODS ####
 def turn(theta, mirte) -> float:
     "Turning method, returns turned amount"
@@ -102,7 +103,7 @@ def drive_forward(distance, mirte, in_meters=False) -> float: #TODO make use of 
             mirte.stop()
             return driven_dist, False
 
-        time.sleep(0.05)
+        time.sleep(SENSOR_WAIT_TIME)
 
     return distance, True
 
@@ -134,7 +135,7 @@ def drive_backward(distance, mirte, in_meters=False) -> float: #TODO make use of
             mirte.stop()
             return driven_dist, False
 
-        time.sleep(0.05)
+        time.sleep(SENSOR_WAIT_TIME)
 
     return distance, True
 

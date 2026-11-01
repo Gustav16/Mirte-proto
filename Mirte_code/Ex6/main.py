@@ -46,14 +46,14 @@ previous_target = None
 target_stack = Target.create_target_stack([landmarkIDs[0],landmarkIDs[3],landmarkIDs[2],landmarkIDs[1], landmarkIDs[0]])
 
 #init map
-LANDMARK_RADIUS = 25
+LANDMARK_RADIUS = 25.0
 global_map = local_map.LocalMap(low=(-120.0, -120.0),
         high=(520.0, 420.0), landmark_radius=LANDMARK_RADIUS,
                 mirte_radius=22) #TODO update local map so it can set radius for different landmarks
 
 Local_MAP = None
 
-global_map.landmarks = [[list(landmarks[ID]), 20.0 + 40.0, ID] for ID in landmarkIDs] # same landmarks as above, in the map's format
+global_map.landmarks = [[list(landmarks[ID]), LANDMARK_RADIUS + 40 +10.0, ID] for ID in landmarkIDs] # same landmarks as above, in the map's format
 #update local map for our local map that acccounts for obstacles
 
 #init needed objects and constants
@@ -87,7 +87,7 @@ time.sleep(0.4)
 #convergence constants
 X_VAR_ERR = 25**2 #reduced from 30 to 25
 Y_VAR_ERR = 25**2  #reduced from 30 to 25
-THETA_VAR_ERR = np.radians(17)**2 #reduced from 20 to 15
+THETA_VAR_ERR = np.radians(15)**2 #reduced from 20 to 15
 
 
 #goal update constants
@@ -134,7 +134,7 @@ def target_update(target, previous_target, m) -> tuple[None, Target]:
     "method for updating target"
     if previous_target:
         #update and increase border restriction
-        m.update_milestone_radius(previous_target.id, 60)
+        m.update_milestone_radius(previous_target.id, LANDMARK_RADIUS + VALID_RANGE +10.0)
     return None, target
 
 ### Target success method ###

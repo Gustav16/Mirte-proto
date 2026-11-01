@@ -106,6 +106,7 @@ SCAN_STEP = np.radians(25)
 MAX_TURNS = (np.radians(360)//SCAN_STEP) - 2
 
 SIDE_STEP = 60 #cm
+RANDOM_CONE = np.radians(60)   # max angle away from the target direction when exploring while converged
 
 
 ### Method for reseting turning varibles ###
@@ -432,9 +433,17 @@ while target_stack or target:
     else:
         print("Trying to explore random path")
         if not has_turned_random_exploration:
-            angle = np.random.uniform(-np.pi, np.pi)
+            if has_converged:
+            #random heading in a forward cone around the direction to the target, never behind
+                target_vec = np.array(landmarks[target.id]) - np.array([est_pose.getX(), est_pose.getY()])
+                target_angle = np.arctan2(target_vec[1], target_vec[0])
+                wanted_heading = target_angle + np.random.uniform(-RANDOM_CONE, RANDOM_CONE)
+                angle = wanted_heading - est_pose.getTheta()
+                angle = np.arctan2(np.sin(angle), np.cos(angle))   # shortest turn, in [-pi, pi]
+            else:
+                angle = np.random.uniform(-np.pi, np.pi)           # no idea where we are, so any direction
             turned = drive.turn(angle, mirte)
-            print(f"Truned {turned} in random path exploration")
+            print(f"Turned {turned} in random path exploration")
             has_turned_random_exploration = True
             u_pending = [0.0, turned]
             continue

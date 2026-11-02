@@ -105,8 +105,9 @@ HAS_TURNED_LEFT = False
 HAS_TURNED_RIGHT = False
 turns = 0
 has_turned_random_exploration = False
+has_turned_semi_exploration = False 
 could_not_reach_global_landmark = False
-semi_could_not_reach_global_landmark = False 
+
 
 #max turn constant
 SCAN_STEP = np.radians(25)
@@ -126,6 +127,7 @@ def reset_turn_variables() -> None:
     turns = 0
     has_turned_random_exploration = False
     could_not_reach_global_landmark = False
+    has_turned_semi_exploration = False 
 
 
 ### Methods for setting and updating target ###
@@ -440,43 +442,11 @@ while target_stack or target:
         #turn 20 degrees to the right
         drive.turn(-SCAN_STEP, mirte)
         u_pending = [0.0, -SCAN_STEP]
-    elif has_semi_converged and not could_not_reach_global_landmark:
-        #------------------ SEMI-CONVERGED GLOBAL PLANNING ------------------
-        print("Trying semi converged path")
-
-
-        goal = (0.0, 100.0)
-        path = planning.rrt_plan([0, 0, 0.0], Local_MAP, goal, True)
-
-        if path is not None:
-            drive.Execute_path(path,
-                                [0.0, 0.0, np.radians(90)], #we are looking foward in local planning so add 90 degrees
-                                mirte,
-                                aug_mcl,
-                                local_landmarks,
-                                local_obstacles,
-                                landmarks,
-                                Local_MAP,
-                                global_map,
-                                target,
-                                False,
-                                False)
-        else:
-            print('could not find exploration path')
-        reset_turn_variables()
-        u_pending = [0.0, 0.0]
-
-
-
-
-
-
-
     else:
         #------------------------ RANDOM EXPLORATION ------------------------
         print("Trying to explore random path")
         if not has_turned_random_exploration:
-            if has_converged:
+            if has_semi_converged:
             #random heading in a forward cone around the direction to the target, never behind
                 target_vec = np.array(landmarks[target.id]) - np.array([est_pose.getX(), est_pose.getY()])
                 target_angle = np.arctan2(target_vec[1], target_vec[0])

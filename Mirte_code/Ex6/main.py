@@ -217,9 +217,9 @@ while target_stack or target:
             ]), ID_LIFETIME]
 
 
-    for id in seen_obstacles:
+    for id in list(seen_obstacles):
         pos, remaining =seen_obstacles[id]
-        if seen_obstacles[id][1] == 0:
+        if remaining == 0:
             del seen_obstacles[id]
         else:
             seen_obstacles[id][1] -= 1
@@ -442,94 +442,36 @@ while target_stack or target:
         u_pending = [0.0, -SCAN_STEP]
     elif has_semi_converged and not could_not_reach_global_landmark:
         #------------------ SEMI-CONVERGED GLOBAL PLANNING ------------------
-        print("Semi converged: trying to drive towards target")
-        #then do planning
-        #TODO do presteps
-
-        print("Creating global path")
-
-        temp_global_map = global_map.Copy()
-
-        #seen_obstacles already holds global positions, so no transform is needed
-        temp_global_map.obstacles = [(pos, id) for id, (pos, remaining) in seen_obstacles.items()]
-
-        target_pos = np.array(landmarks[target.id])
-
-        delta = target_pos - np.array([est_pose.getX(), est_pose.getY()])
-
-        dist = np.linalg.norm(delta)
-
-        goal_out_of_reach = dist > 200
-        goal_len = min(abs(dist - 50), abs(dist - 30)) if not goal_out_of_reach else min(200, dist - 50)
-        length = goal_len / dist
-
-        goal = np.array([est_pose.getX(), est_pose.getY()]) + delta * length
+        print("Trying semi converged path")
 
 
-        if goal_out_of_reach:
-            path = None
-            direction = delta / dist #unit vector from mirte towards the target
-            right = np.array([direction[1], -direction[0]]) #unit vector 90 degrees to the right of the driving direction
+        goal = (0.0, 100.0)
+        path = planning.rrt_plan([0, 0, 0.0], Local_MAP, goal, True)
 
-            for candidate in [goal, goal + SIDE_STEP * right, goal - SIDE_STEP * right]:
-                if not temp_global_map.in_collision(candidate): #only run rrt if the goal is not inside an obstacle
-                    path = planning.rrt_plan([est_pose.getX(), est_pose.getY()], temp_global_map, candidate, False)
-                if path is not None:
-                    goal = candidate
-                    break
-                print('could not find global path, so trying with goal 60 cm to the side')
-
-
+        if path is not None:
+            drive.Execute_path(path,
+                                [0.0, 0.0, np.radians(90)], #we are looking foward in local planning so add 90 degrees
+                                mirte,
+                                aug_mcl,
+                                local_landmarks,
+                                local_obstacles,
+                                landmarks,
+                                Local_MAP,
+                                global_map,
+                                target,
+                                False,
+                                False)
         else:
-            path = None
-            goal_offset = np.array(goal) - target_pos #vector from target to the original goal
-            goal_radius = np.linalg.norm(goal_offset)
-            attempts = 0
-
-            while path is None and attempts < MAX_GOAL_ATTEMPTS:
-
-                if not temp_global_map.in_collision(goal): # Check if goal is inside obstacle
-                    path = planning.rrt_plan([est_pose.getX(), est_pose.getY()], temp_global_map, goal, False) # If not do rrt planning
-                
-                
-                if path is None:
-                    #update goal with some random setting in vacinity
-                    attempts += 1
-                    print('could not find global path, so trying with goal in nearby vacinity')
-                    step = (attempts + 1) // 2 * (1 if attempts % 2 else -1) # Calculate step: 1, -1, 2, -2, 3, -3...
-                    angle = step * GOAL_SEARCH_STEP / goal_radius # Calculate angle of vector 
-                    rotation = np.array([[np.cos(angle), -np.sin(angle)],
-                                        [np.sin(angle),  np.cos(angle)]]) # Rotate vector
-                    goal = target_pos + rotation @ goal_offset # Update goal
-
-        reached_target = False
-        if path is None:
-            print("Could not find any global path even with many goals")
-            could_not_reach_global_landmark = True 
-            u_pending = [0.0, 0.0]
-            continue   
-        else:
-            reached_target = drive.Execute_path(path, 
-                                        [est_pose.getX(), est_pose.getY(), est_pose.getTheta()], 
-                                        mirte, 
-                                        aug_mcl, 
-                                        local_landmarks, 
-                                        local_obstacles,
-                                        landmarks, 
-                                        temp_global_map, 
-                                        global_map,
-                                        target, 
-                                        False, 
-                                        True)
-        #reset global obstacles
+            print('could not find exploration path')
         reset_turn_variables()
-        if reached_target:
-            print("target beleived to have been reached, via global pathplanning")
-            target, previous_target = target_update(target, previous_target, global_map)
-            if target:
-                raise ValueError('target has not been set to None')
         u_pending = [0.0, 0.0]
-        continue
+
+
+
+
+
+
+
     else:
         #------------------------ RANDOM EXPLORATION ------------------------
         print("Trying to explore random path")

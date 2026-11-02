@@ -23,7 +23,7 @@ import copy
 sys.path.append(
     os.path.join(
         os.path.dirname(__file__),
-        "../../Mirte/ku_mirte_python"
+        "Mirte/ku_mirte_python"
     )
 )
 

@@ -282,7 +282,7 @@ while target_stack or target:
 
                 if path is None:
                     attempts += 1
-                    target_run = False
+                    target_run = True
                     print('could not find local path, so trying with goal in nearby vacinity')
                     step = (attempts + 1) // 2 * (1 if attempts % 2 else -1)
                     angle = step * GOAL_SEARCH_STEP / goal_radius

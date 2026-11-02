@@ -17,7 +17,7 @@ from ku_mirte import KU_Mirte
 TESTING = "testing" in sys.argv
 
 
-landmarkIDs = [11,7,6,1]
+landmarkIDs = [11,7,6,9]
 
 #init landmarks
 landmarks = {

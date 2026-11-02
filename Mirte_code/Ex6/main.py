@@ -162,7 +162,7 @@ def has_reached_target(target, z, est_pose, has_converged) -> bool: #TODO should
 
     distance_to_target = np.linalg.norm(robot_pos - target_pos)
 
-    if has_converged and distance_to_target <= 40:
+    if has_converged and distance_to_target <= 40.0:
         return True
         
     #TODO check if there are other success conditions
